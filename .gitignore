@@ -1,0 +1,47 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+!**/src/test/**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.kotlin/
+captures/
+local.properties
+
+# Android build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Kotlin
+.konan/
+
+# Xcode / iOS
+iosApp/build/
+iosApp/Pods/
+iosApp/*.xcworkspace
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Firebase config (add your own)
+composeApp/google-services.json
+iosApp/iosApp/GoogleService-Info.plist
+
+# Environment
+.env
+.env.local
+
+# Node (in case)
+node_modules/
