@@ -1,9 +1,9 @@
 package app.folga.di
 
+import app.folga.data.FirebaseAuthRepository
 import app.folga.data.SqlDelightFolgaRepository
 import app.folga.data.SqlDelightSwapRepository
 import app.folga.data.SqlDelightUserRepository
-import app.folga.data.StubAuthRepository
 import app.folga.db.DatabaseDriverFactory
 import app.folga.db.FolgaDatabase
 import app.folga.domain.AuthRepository
@@ -33,7 +33,7 @@ val appModule = module {
     single<UserRepository> { SqlDelightUserRepository(get()) }
     single<FolgaRepository> { SqlDelightFolgaRepository(get()) }
     single<SwapRepository> { SqlDelightSwapRepository(get()) }
-    single<AuthRepository> { StubAuthRepository(get(), get()) }
+    single<AuthRepository> { FirebaseAuthRepository(get()) }
 
     factory { LoginViewModel(get()) }
     factory { RegisterViewModel(get()) }

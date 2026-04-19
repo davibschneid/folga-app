@@ -7,13 +7,6 @@ CREATE TABLE IF NOT EXISTS UserEntity (
     createdAt INTEGER NOT NULL
 );
 
--- Plaintext credentials used ONLY by StubAuthRepository during MVP. Will be
--- dropped once Firebase Auth replaces the stub — never ship this table in prod.
-CREATE TABLE IF NOT EXISTS CredentialEntity (
-    email TEXT NOT NULL PRIMARY KEY,
-    password TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS FolgaEntity (
     id TEXT NOT NULL PRIMARY KEY,
     userId TEXT NOT NULL,
@@ -53,15 +46,6 @@ SELECT * FROM UserEntity ORDER BY name ASC;
 
 deleteUser:
 DELETE FROM UserEntity WHERE id = ?;
-
-upsertCredential:
-INSERT OR REPLACE INTO CredentialEntity(email, password) VALUES (?, ?);
-
-selectCredentialByEmail:
-SELECT * FROM CredentialEntity WHERE email = ?;
-
-deleteCredentialByEmail:
-DELETE FROM CredentialEntity WHERE email = ?;
 
 upsertFolga:
 INSERT OR REPLACE INTO FolgaEntity(id, userId, date, status, note, createdAt)

@@ -38,3 +38,26 @@ A estrutura do Xcode precisa ser gerada uma vez em uma máquina com macOS (o rep
    ```
 
 Depois de gerado, commite `iosApp/iosApp.xcodeproj` e `iosApp/iosApp/` no repositório.
+
+## Firebase no iOS
+
+Para a autenticação Firebase funcionar no iOS:
+
+1. Adicione o SDK `Firebase/Auth` via Swift Package Manager ou CocoaPods no `iosApp.xcodeproj`.
+2. Arraste `iosApp/iosApp/GoogleService-Info.plist` (já commitado no repo) para o target `iosApp` no Xcode.
+3. Em `iosAppApp.swift` (ou `AppDelegate.swift`), chame `FirebaseApp.configure()` **antes** de qualquer chamada para Firebase:
+   ```swift
+   import SwiftUI
+   import FirebaseCore
+
+   @main
+   struct iosAppApp: App {
+       init() {
+           FirebaseApp.configure()
+       }
+       var body: some Scene {
+           WindowGroup { ContentView() }
+       }
+   }
+   ```
+4. No Android o `google-services` plugin faz essa inicialização automaticamente — nada a fazer do lado Kotlin.
