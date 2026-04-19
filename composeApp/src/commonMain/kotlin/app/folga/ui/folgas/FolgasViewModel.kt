@@ -37,10 +37,9 @@ class FolgasViewModel(
     private val _state = MutableStateFlow(FolgasUiState())
     val state: StateFlow<FolgasUiState> = _state.asStateFlow()
 
-    val currentUser: StateFlow<User?> = authRepository.currentUser.let { flow ->
-        if (flow is StateFlow<*>) @Suppress("UNCHECKED_CAST") (flow as StateFlow<User?>)
-        else MutableStateFlow<User?>(null).asStateFlow()
-    }
+    // Works for any Flow<User?> (stub or Firebase-backed) — no unsafe downcast.
+    val currentUser: StateFlow<User?> = authRepository.currentUser
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val folgas: StateFlow<List<Folga>> = currentUser

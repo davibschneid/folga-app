@@ -39,9 +39,9 @@ class SwapsViewModel(
     private val _state = MutableStateFlow(SwapsUiState())
     val state: StateFlow<SwapsUiState> = _state.asStateFlow()
 
-    @Suppress("UNCHECKED_CAST")
-    val currentUser: StateFlow<User?> = authRepository.currentUser as? StateFlow<User?>
-        ?: MutableStateFlow<User?>(null).asStateFlow()
+    // Works for any Flow<User?> (stub or Firebase-backed) — no unsafe downcast.
+    val currentUser: StateFlow<User?> = authRepository.currentUser
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val myFolgas: StateFlow<List<Folga>> = currentUser
