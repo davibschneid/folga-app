@@ -35,9 +35,10 @@ DerivedData/
 # macOS
 .DS_Store
 
-# Firebase config (add your own)
-composeApp/google-services.json
-iosApp/iosApp/GoogleService-Info.plist
+# Firebase config
+#   Both google-services.json and GoogleService-Info.plist are committed.
+#   API keys inside are restricted by package / bundle ID + SHA-1 fingerprint
+#   per Firebase docs, so they are safe to version alongside the source.
 
 # Environment
 .env
