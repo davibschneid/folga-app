@@ -13,7 +13,8 @@ import dev.gitlive.firebase.auth.FirebaseAuthUserCollisionException
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.datetime.Clock
 
 /**
@@ -29,8 +30,21 @@ class FirebaseAuthRepository(
     private val auth: FirebaseAuth = Firebase.auth,
 ) : AuthRepository {
 
-    override val currentUser: Flow<User?> = auth.authStateChanged.map { fbUser ->
-        fbUser?.let { resolveProfile(it) }
+    // Set synchronously at the end of a successful sign-in/sign-up so the UI
+    // sees the resolved domain User even before `authStateChanged` re-emits
+    // (it may have already fired with a null local profile because the SQLite
+    // upsert hadn't landed yet).
+    private val manualUser = MutableStateFlow<User?>(null)
+
+    override val currentUser: Flow<User?> = combine(
+        auth.authStateChanged,
+        manualUser,
+    ) { fbUser, manual ->
+        when {
+            fbUser == null -> null
+            manual != null && manual.id == fbUser.uid -> manual
+            else -> resolveProfile(fbUser)
+        }
     }
 
     override suspend fun signInWithEmail(email: String, password: String): AuthResult =
@@ -43,6 +57,7 @@ class FirebaseAuthRepository(
                         ?: return@fold AuthResult.Failure(
                             "Perfil não encontrado. Conclua o cadastro antes de entrar."
                         )
+                    manualUser.value = profile
                     AuthResult.Success(profile)
                 },
                 onFailure = { AuthResult.Failure(it.humanMessage("Email ou senha inválidos")) },
@@ -67,7 +82,10 @@ class FirebaseAuthRepository(
                     team = team,
                     createdAt = Clock.System.now(),
                 )
+                // Persist first, then publish manually so currentUser emits the
+                // complete profile even though authStateChanged already fired.
                 userRepository.upsert(profile)
+                manualUser.value = profile
                 AuthResult.Success(profile)
             },
             onFailure = { AuthResult.Failure(it.humanMessage("Erro ao cadastrar usuário")) },
@@ -84,6 +102,7 @@ class FirebaseAuthRepository(
 
     override suspend fun signOut() {
         runCatching { auth.signOut() }
+        manualUser.value = null
     }
 
     private suspend fun resolveProfile(fbUser: FirebaseUser): User? {
