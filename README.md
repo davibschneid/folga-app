@@ -52,11 +52,17 @@ folga-app/
 - Conta Firebase com um projeto criado
 
 ### Configuração Firebase
-1. Crie um projeto em https://console.firebase.google.com
-2. Adicione um app Android (package: `app.folga.android`) e baixe `google-services.json` → coloque em `composeApp/`
-3. Adicione um app iOS (bundle: `app.folga.ios`) e baixe `GoogleService-Info.plist` → coloque em `iosApp/iosApp/`
-4. Habilite Authentication → Google e Email/Password
-5. Crie Firestore Database (modo produção)
+Projeto Firebase **appfolgaandroid** já provisionado. Os arquivos de configuração
+estão versionados no repo:
+- `composeApp/google-services.json` (app Android `app.folga.android`)
+- `iosApp/iosApp/GoogleService-Info.plist` (app iOS `app.folga.ios`)
+
+Se precisar regerar: https://console.firebase.google.com → projeto `appfolgaandroid`
+→ Project Settings → baixar os arquivos e substituir nos caminhos acima.
+
+Lembrete: para rodar o Google Sign-In em Android é preciso cadastrar o
+SHA-1 da sua chave de debug no Firebase Console (Project Settings → SHA
+certificate fingerprints).
 
 ### Android
 ```bash
