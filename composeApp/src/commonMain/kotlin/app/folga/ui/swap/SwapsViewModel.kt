@@ -84,30 +84,49 @@ class SwapsViewModel(
         }
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val targetFolga = folgaRepository.findById(targetId)
-            if (targetFolga == null) {
-                _state.update { it.copy(isLoading = false, error = "Folga do colega não encontrada") }
-                return@launch
-            }
-            swapRepository.request(
-                fromFolgaId = myId,
-                toFolgaId = targetId,
-                requesterId = me.id,
-                targetId = targetFolga.userId,
-                message = _state.value.message.takeIf { it.isNotBlank() },
-            )
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    selectedMyFolgaId = null,
-                    selectedTargetFolgaId = null,
-                    message = "",
+            runCatching {
+                val targetFolga = folgaRepository.findById(targetId)
+                    ?: error("Folga do colega não encontrada")
+                swapRepository.request(
+                    fromFolgaId = myId,
+                    toFolgaId = targetId,
+                    requesterId = me.id,
+                    targetId = targetFolga.userId,
+                    message = _state.value.message.takeIf { it.isNotBlank() },
                 )
+            }.onSuccess {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        selectedMyFolgaId = null,
+                        selectedTargetFolgaId = null,
+                        message = "",
+                    )
+                }
+            }.onFailure { e ->
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Erro ao solicitar troca") }
             }
         }
     }
 
-    fun accept(swapId: String) = viewModelScope.launch { swapRepository.accept(swapId) }
-    fun reject(swapId: String) = viewModelScope.launch { swapRepository.reject(swapId) }
-    fun cancel(swapId: String) = viewModelScope.launch { swapRepository.cancel(swapId) }
+    fun accept(swapId: String) {
+        viewModelScope.launch {
+            runCatching { swapRepository.accept(swapId) }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao aceitar troca") } }
+        }
+    }
+
+    fun reject(swapId: String) {
+        viewModelScope.launch {
+            runCatching { swapRepository.reject(swapId) }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao recusar troca") } }
+        }
+    }
+
+    fun cancel(swapId: String) {
+        viewModelScope.launch {
+            runCatching { swapRepository.cancel(swapId) }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao cancelar troca") } }
+        }
+    }
 }
