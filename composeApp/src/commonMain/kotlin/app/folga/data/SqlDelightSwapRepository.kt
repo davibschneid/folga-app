@@ -59,25 +59,25 @@ class SqlDelightSwapRepository(
         val swap = queries.selectSwapById(swapId).executeAsOneOrNull() ?: return@withContext
         val fromFolga = queries.selectFolgaById(swap.fromFolgaId).executeAsOneOrNull()
         val toFolga = queries.selectFolgaById(swap.toFolgaId).executeAsOneOrNull()
-        if (fromFolga != null && toFolga != null) {
-            // Swap the owners (who the folga belongs to) keeping the dates
-            queries.upsertFolga(
-                id = fromFolga.id,
-                userId = toFolga.userId,
-                date = fromFolga.date,
-                status = FolgaStatus.SWAPPED.name,
-                note = fromFolga.note,
-                createdAt = fromFolga.createdAt,
-            )
-            queries.upsertFolga(
-                id = toFolga.id,
-                userId = fromFolga.userId,
-                date = toFolga.date,
-                status = FolgaStatus.SWAPPED.name,
-                note = toFolga.note,
-                createdAt = toFolga.createdAt,
-            )
-        }
+        if (fromFolga == null || toFolga == null) return@withContext
+
+        // Swap the owners (who the folga belongs to) keeping the dates
+        queries.upsertFolga(
+            id = fromFolga.id,
+            userId = toFolga.userId,
+            date = fromFolga.date,
+            status = FolgaStatus.SWAPPED.name,
+            note = fromFolga.note,
+            createdAt = fromFolga.createdAt,
+        )
+        queries.upsertFolga(
+            id = toFolga.id,
+            userId = fromFolga.userId,
+            date = toFolga.date,
+            status = FolgaStatus.SWAPPED.name,
+            note = toFolga.note,
+            createdAt = toFolga.createdAt,
+        )
         queries.upsertSwap(
             id = swap.id,
             fromFolgaId = swap.fromFolgaId,
