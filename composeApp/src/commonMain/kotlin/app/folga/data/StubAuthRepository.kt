@@ -1,39 +1,46 @@
 package app.folga.data
 
+import app.folga.db.FolgaDatabase
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
 import app.folga.domain.User
 import app.folga.domain.UserRepository
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlin.random.Random
 
 /**
  * In-memory/local auth used during MVP development.
  *
- * Replace with a Firebase-backed implementation (via dev.gitlive.firebase-auth)
- * once `google-services.json` / `GoogleService-Info.plist` are added and a
- * Firebase project is configured. See README for setup steps.
+ * Credentials are persisted via SQLDelight (`CredentialEntity`) so the stub
+ * keeps working across app restarts. The whole class (and the credentials
+ * table) must be removed when Firebase Auth replaces the stub — see README.
  */
 class StubAuthRepository(
+    private val db: FolgaDatabase,
     private val userRepository: UserRepository,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : AuthRepository {
 
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val passwords = mutableMapOf<String, String>()
+    private val queries get() = db.folgaQueries
 
-    override suspend fun signInWithEmail(email: String, password: String): AuthResult {
-        val stored = passwords[email]
-        if (stored == null || stored != password) {
-            return AuthResult.Failure("Email ou senha inválidos")
+    override suspend fun signInWithEmail(email: String, password: String): AuthResult = withContext(dispatcher) {
+        val stored = queries.selectCredentialByEmail(email).executeAsOneOrNull()
+        if (stored == null || stored.password != password) {
+            return@withContext AuthResult.Failure("Email ou senha inválidos")
         }
-        val user = userRepository.findByEmail(email) ?: return AuthResult.Failure("Usuário não encontrado")
+        val user = userRepository.findByEmail(email)
+            ?: return@withContext AuthResult.Failure("Usuário não encontrado")
         _currentUser.value = user
-        return AuthResult.Success(user)
+        AuthResult.Success(user)
     }
 
     override suspend fun signUpWithEmail(
@@ -42,9 +49,9 @@ class StubAuthRepository(
         name: String,
         registrationNumber: String,
         team: String,
-    ): AuthResult {
+    ): AuthResult = withContext(dispatcher) {
         if (userRepository.findByEmail(email) != null) {
-            return AuthResult.Failure("Email já cadastrado")
+            return@withContext AuthResult.Failure("Email já cadastrado")
         }
         val user = User(
             id = randomId(),
@@ -54,10 +61,19 @@ class StubAuthRepository(
             team = team,
             createdAt = Clock.System.now(),
         )
-        userRepository.upsert(user)
-        passwords[email] = password
+        db.transaction {
+            queries.upsertUser(
+                id = user.id,
+                email = user.email,
+                name = user.name,
+                registrationNumber = user.registrationNumber,
+                team = user.team,
+                createdAt = user.createdAt.toEpochMilliseconds(),
+            )
+            queries.upsertCredential(email = email, password = password)
+        }
         _currentUser.value = user
-        return AuthResult.Success(user)
+        AuthResult.Success(user)
     }
 
     override suspend fun signInWithGoogleIdToken(

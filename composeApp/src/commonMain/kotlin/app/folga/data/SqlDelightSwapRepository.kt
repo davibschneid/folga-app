@@ -61,34 +61,37 @@ class SqlDelightSwapRepository(
         val toFolga = queries.selectFolgaById(swap.toFolgaId).executeAsOneOrNull()
         if (fromFolga == null || toFolga == null) return@withContext
 
-        // Swap the owners (who the folga belongs to) keeping the dates
-        queries.upsertFolga(
-            id = fromFolga.id,
-            userId = toFolga.userId,
-            date = fromFolga.date,
-            status = FolgaStatus.SWAPPED.name,
-            note = fromFolga.note,
-            createdAt = fromFolga.createdAt,
-        )
-        queries.upsertFolga(
-            id = toFolga.id,
-            userId = fromFolga.userId,
-            date = toFolga.date,
-            status = FolgaStatus.SWAPPED.name,
-            note = toFolga.note,
-            createdAt = toFolga.createdAt,
-        )
-        queries.upsertSwap(
-            id = swap.id,
-            fromFolgaId = swap.fromFolgaId,
-            toFolgaId = swap.toFolgaId,
-            requesterId = swap.requesterId,
-            targetId = swap.targetId,
-            status = SwapStatus.ACCEPTED.name,
-            message = swap.message,
-            createdAt = swap.createdAt,
-            respondedAt = Clock.System.now().toEpochMilliseconds(),
-        )
+        // All writes run atomically: either both folgas swap owners AND the
+        // swap is marked ACCEPTED, or nothing changes.
+        db.transaction {
+            queries.upsertFolga(
+                id = fromFolga.id,
+                userId = toFolga.userId,
+                date = fromFolga.date,
+                status = FolgaStatus.SWAPPED.name,
+                note = fromFolga.note,
+                createdAt = fromFolga.createdAt,
+            )
+            queries.upsertFolga(
+                id = toFolga.id,
+                userId = fromFolga.userId,
+                date = toFolga.date,
+                status = FolgaStatus.SWAPPED.name,
+                note = toFolga.note,
+                createdAt = toFolga.createdAt,
+            )
+            queries.upsertSwap(
+                id = swap.id,
+                fromFolgaId = swap.fromFolgaId,
+                toFolgaId = swap.toFolgaId,
+                requesterId = swap.requesterId,
+                targetId = swap.targetId,
+                status = SwapStatus.ACCEPTED.name,
+                message = swap.message,
+                createdAt = swap.createdAt,
+                respondedAt = Clock.System.now().toEpochMilliseconds(),
+            )
+        }
     }
 
     override suspend fun reject(swapId: String) = updateStatus(swapId, SwapStatus.REJECTED)

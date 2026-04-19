@@ -33,7 +33,7 @@ val appModule = module {
     single<UserRepository> { SqlDelightUserRepository(get()) }
     single<FolgaRepository> { SqlDelightFolgaRepository(get()) }
     single<SwapRepository> { SqlDelightSwapRepository(get()) }
-    single<AuthRepository> { StubAuthRepository(get()) }
+    single<AuthRepository> { StubAuthRepository(get(), get()) }
 
     factory { LoginViewModel(get()) }
     factory { RegisterViewModel(get()) }
