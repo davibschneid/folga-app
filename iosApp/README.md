@@ -41,9 +41,9 @@ Depois de gerado, commite `iosApp/iosApp.xcodeproj` e `iosApp/iosApp/` no reposi
 
 ## Firebase no iOS
 
-Para a autenticação Firebase funcionar no iOS:
+Para o Firebase (Auth + Firestore) funcionar no iOS:
 
-1. Adicione o SDK `Firebase/Auth` via Swift Package Manager ou CocoaPods no `iosApp.xcodeproj`.
+1. Adicione os SDKs `Firebase/Auth` **e** `Firebase/Firestore` via Swift Package Manager ou CocoaPods no `iosApp.xcodeproj`.
 2. Arraste `iosApp/iosApp/GoogleService-Info.plist` (já commitado no repo) para o target `iosApp` no Xcode.
 3. Em `iosAppApp.swift` (ou `AppDelegate.swift`), chame `FirebaseApp.configure()` **antes** de qualquer chamada para Firebase:
    ```swift
