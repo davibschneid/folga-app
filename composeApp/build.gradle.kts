@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.sqldelight)
+    alias(libs.plugins.googleServices)
 }
 
 kotlin {
@@ -60,6 +61,8 @@ kotlin {
 
             implementation(libs.sqldelight.coroutines)
             implementation(libs.sqldelight.primitive.adapters)
+
+            implementation(libs.firebase.auth)
         }
 
         commonTest.dependencies {

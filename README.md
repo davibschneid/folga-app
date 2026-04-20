@@ -35,8 +35,8 @@ folga-app/
 
 - [x] Estrutura base KMP + Compose Multiplatform
 - [ ] Login com Google
-- [ ] Login/cadastro com email e senha
-- [ ] Cadastro de colaborador (nome, email, matrícula, equipe)
+- [x] Login/cadastro com email e senha (via Firebase Auth)
+- [x] Cadastro de colaborador (nome, email, matrícula, equipe)
 - [ ] Reservar folga (escolher data)
 - [ ] Listar minhas folgas
 - [ ] Solicitar troca de folga com colega
