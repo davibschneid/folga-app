@@ -62,6 +62,12 @@ class FirestoreSwapRepository(
             if (!swapSnap.exists) return@runTransaction
             val swap = swapSnap.data(SwapDto.serializer())
 
+            // Only a PENDING swap is acceptable. Without this guard a
+            // concurrent accept() that already committed would trigger
+            // a retry which re-reads the post-swap folgas and then
+            // writes them back *un*-swapped, reverting ownership.
+            if (swap.status != SwapStatus.PENDING.name) return@runTransaction
+
             val fromRef = folgas.document(swap.fromFolgaId)
             val toRef = folgas.document(swap.toFolgaId)
             val fromSnap = get(fromRef)
@@ -91,21 +97,33 @@ class FirestoreSwapRepository(
         }
     }
 
-    override suspend fun reject(swapId: String) = updateStatus(swapId, SwapStatus.REJECTED)
+    override suspend fun reject(swapId: String) = resolvePending(swapId, SwapStatus.REJECTED)
 
-    override suspend fun cancel(swapId: String) = updateStatus(swapId, SwapStatus.CANCELLED)
+    override suspend fun cancel(swapId: String) = resolvePending(swapId, SwapStatus.CANCELLED)
 
-    private suspend fun updateStatus(swapId: String, newStatus: SwapStatus) {
+    /**
+     * Transactionally transitions a swap out of PENDING into [newStatus]
+     * (REJECTED or CANCELLED). The PENDING guard prevents a late reject /
+     * cancel from overwriting a swap that a concurrent [accept] already
+     * applied — otherwise the two folgas would stay swapped on the server
+     * but the swap record would show REJECTED/CANCELLED.
+     */
+    private suspend fun resolvePending(swapId: String, newStatus: SwapStatus) {
         val ref = swaps.document(swapId)
-        val snap = ref.get()
-        if (!snap.exists) return
-        val current = snap.data(SwapDto.serializer())
-        ref.set(
-            current.copy(
-                status = newStatus.name,
-                respondedAt = Clock.System.now().toEpochMilliseconds(),
+        firestore.runTransaction {
+            val snap = get(ref)
+            if (!snap.exists) return@runTransaction
+            val current = snap.data(SwapDto.serializer())
+            if (current.status != SwapStatus.PENDING.name) return@runTransaction
+            set(
+                documentRef = ref,
+                strategy = SwapDto.serializer(),
+                data = current.copy(
+                    status = newStatus.name,
+                    respondedAt = Clock.System.now().toEpochMilliseconds(),
+                ),
             )
-        )
+        }
     }
 
     override fun observeIncoming(userId: String): Flow<List<SwapRequest>> =
