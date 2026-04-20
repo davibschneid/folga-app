@@ -13,9 +13,12 @@ import kotlinx.datetime.Clock
 
 /**
  * Firestore-backed [SwapRepository]. Swap requests live under `swaps/{id}`.
- * `accept()` uses a Firestore transaction to atomically flip both folgas'
- * owners and mark the swap accepted — matching the SQLite `db.transaction { }`
- * contract from the previous implementation.
+ * `accept()` uses `firestore.runTransaction { }` so reads of the swap and both
+ * folgas, plus the three writes that flip owners and mark the swap accepted,
+ * all run under Firestore's optimistic concurrency control. This matches the
+ * `db.transaction { }` contract from the SQLite implementation and prevents
+ * two clients from racing to accept the same swap (or concurrently cancelling
+ * a folga that is about to be flipped).
  */
 class FirestoreSwapRepository(
     private val firestore: FirebaseFirestore = Firebase.firestore,
@@ -49,42 +52,43 @@ class FirestoreSwapRepository(
 
     override suspend fun accept(swapId: String) {
         val swapRef = swaps.document(swapId)
-        val swapSnap = swapRef.get()
-        if (!swapSnap.exists) return
-        val swap = swapSnap.data(SwapDto.serializer())
+        // runTransaction reads + writes atomically under optimistic
+        // concurrency: if any of the three docs mutate between the get()s
+        // and the commit, Firestore aborts and re-runs the block. That's
+        // what keeps two concurrent accept()s (or an accept racing a
+        // folga cancel) from corrupting ownership.
+        firestore.runTransaction {
+            val swapSnap = get(swapRef)
+            if (!swapSnap.exists) return@runTransaction
+            val swap = swapSnap.data(SwapDto.serializer())
 
-        val fromRef = folgas.document(swap.fromFolgaId)
-        val toRef = folgas.document(swap.toFolgaId)
-        val fromSnap = fromRef.get()
-        val toSnap = toRef.get()
-        if (!fromSnap.exists || !toSnap.exists) return
-        val from = fromSnap.data(FolgaDto.serializer())
-        val to = toSnap.data(FolgaDto.serializer())
+            val fromRef = folgas.document(swap.fromFolgaId)
+            val toRef = folgas.document(swap.toFolgaId)
+            val fromSnap = get(fromRef)
+            val toSnap = get(toRef)
+            if (!fromSnap.exists || !toSnap.exists) return@runTransaction
+            val from = fromSnap.data(FolgaDto.serializer())
+            val to = toSnap.data(FolgaDto.serializer())
 
-        // Writing all three docs through a batch ensures they land
-        // together: either both folgas flip owner AND the swap is marked
-        // ACCEPTED, or nothing changes. Firestore applies the batch
-        // atomically on the server.
-        val batch = firestore.batch()
-        batch.set(
-            documentRef = fromRef,
-            strategy = FolgaDto.serializer(),
-            data = from.copy(userId = to.userId, status = FolgaStatus.SWAPPED.name),
-        )
-        batch.set(
-            documentRef = toRef,
-            strategy = FolgaDto.serializer(),
-            data = to.copy(userId = from.userId, status = FolgaStatus.SWAPPED.name),
-        )
-        batch.set(
-            documentRef = swapRef,
-            strategy = SwapDto.serializer(),
-            data = swap.copy(
-                status = SwapStatus.ACCEPTED.name,
-                respondedAt = Clock.System.now().toEpochMilliseconds(),
-            ),
-        )
-        batch.commit()
+            set(
+                documentRef = fromRef,
+                strategy = FolgaDto.serializer(),
+                data = from.copy(userId = to.userId, status = FolgaStatus.SWAPPED.name),
+            )
+            set(
+                documentRef = toRef,
+                strategy = FolgaDto.serializer(),
+                data = to.copy(userId = from.userId, status = FolgaStatus.SWAPPED.name),
+            )
+            set(
+                documentRef = swapRef,
+                strategy = SwapDto.serializer(),
+                data = swap.copy(
+                    status = SwapStatus.ACCEPTED.name,
+                    respondedAt = Clock.System.now().toEpochMilliseconds(),
+                ),
+            )
+        }
     }
 
     override suspend fun reject(swapId: String) = updateStatus(swapId, SwapStatus.REJECTED)
