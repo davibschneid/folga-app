@@ -47,21 +47,16 @@ class FirebaseAuthRepository(
         }
     }
 
-    override suspend fun signInWithEmail(email: String, password: String): AuthResult =
-        runCatching { auth.signInWithEmailAndPassword(email, password) }
-            .fold(
-                onSuccess = { result ->
-                    val fbUser = result.user
-                        ?: return@fold AuthResult.Failure("Falha ao autenticar")
-                    val profile = resolveProfile(fbUser)
-                        ?: return@fold AuthResult.Failure(
-                            "Perfil não encontrado. Conclua o cadastro antes de entrar."
-                        )
-                    manualUser.value = profile
-                    AuthResult.Success(profile)
-                },
-                onFailure = { AuthResult.Failure(it.humanMessage("Email ou senha inválidos")) },
+    override suspend fun signInWithEmail(email: String, password: String): AuthResult = runCatching {
+        val result = auth.signInWithEmailAndPassword(email, password)
+        val fbUser = result.user ?: return@runCatching AuthResult.Failure("Falha ao autenticar")
+        val profile = resolveProfile(fbUser)
+            ?: return@runCatching AuthResult.Failure(
+                "Perfil não encontrado. Conclua o cadastro antes de entrar."
             )
+        manualUser.value = profile
+        AuthResult.Success(profile)
+    }.getOrElse { AuthResult.Failure(it.humanMessage("Email ou senha inválidos")) }
 
     override suspend fun signUpWithEmail(
         email: String,
@@ -69,27 +64,39 @@ class FirebaseAuthRepository(
         name: String,
         registrationNumber: String,
         team: String,
-    ): AuthResult = runCatching { auth.createUserWithEmailAndPassword(email, password) }
-        .fold(
-            onSuccess = { result ->
-                val fbUser = result.user
-                    ?: return@fold AuthResult.Failure("Falha ao criar usuário")
-                val profile = User(
-                    id = fbUser.uid,
-                    email = fbUser.email ?: email,
-                    name = name,
-                    registrationNumber = registrationNumber,
-                    team = team,
-                    createdAt = Clock.System.now(),
-                )
-                // Persist first, then publish manually so currentUser emits the
-                // complete profile even though authStateChanged already fired.
-                userRepository.upsert(profile)
-                manualUser.value = profile
-                AuthResult.Success(profile)
-            },
-            onFailure = { AuthResult.Failure(it.humanMessage("Erro ao cadastrar usuário")) },
+    ): AuthResult {
+        val fbUser = runCatching { auth.createUserWithEmailAndPassword(email, password).user }
+            .getOrElse {
+                return AuthResult.Failure(it.humanMessage("Erro ao cadastrar usuário"))
+            }
+            ?: return AuthResult.Failure("Falha ao criar usuário")
+
+        val profile = User(
+            id = fbUser.uid,
+            email = fbUser.email ?: email,
+            name = name,
+            registrationNumber = registrationNumber,
+            team = team,
+            createdAt = Clock.System.now(),
         )
+
+        // Persist first, then publish manually so currentUser emits the
+        // complete profile even though authStateChanged already fired.
+        return runCatching {
+            userRepository.upsert(profile)
+            manualUser.value = profile
+            AuthResult.Success(profile)
+        }.getOrElse { upsertError ->
+            // Local profile write failed after Firebase already created the account.
+            // Roll the Firebase user back so the email is free to retry — otherwise
+            // the user would be locked out: "email já cadastrado" on retry and
+            // "perfil não encontrado" on sign-in.
+            runCatching { fbUser.delete() }
+            AuthResult.Failure(
+                upsertError.message ?: "Erro ao salvar perfil. Tente novamente."
+            )
+        }
+    }
 
     override suspend fun signInWithGoogleIdToken(
         idToken: String,

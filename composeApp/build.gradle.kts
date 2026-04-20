@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
-    alias(libs.plugins.sqldelight)
     alias(libs.plugins.googleServices)
 }
 
@@ -37,7 +36,6 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.ktx)
             implementation(compose.preview)
             implementation(libs.kotlinx.coroutines.android)
-            implementation(libs.sqldelight.android.driver)
             implementation(libs.koin.android)
         }
 
@@ -59,18 +57,12 @@ kotlin {
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
 
-            implementation(libs.sqldelight.coroutines)
-            implementation(libs.sqldelight.primitive.adapters)
-
             implementation(libs.firebase.auth)
+            implementation(libs.firebase.firestore)
         }
 
         commonTest.dependencies {
             implementation(kotlin("test"))
-        }
-
-        iosMain.dependencies {
-            implementation(libs.sqldelight.native.driver)
         }
     }
 }
@@ -111,12 +103,4 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
-}
-
-sqldelight {
-    databases {
-        create("FolgaDatabase") {
-            packageName.set("app.folga.db")
-        }
-    }
 }

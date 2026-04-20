@@ -12,8 +12,6 @@ kotlinx-serialization = "1.7.3"
 
 koin = "4.0.0"
 
-sqldelight = "2.0.2"
-
 firebase-kotlin-sdk = "2.1.0"
 google-services = "4.4.2"
 
@@ -37,11 +35,6 @@ koin-compose = { group = "io.insert-koin", name = "koin-compose", version.ref = 
 koin-compose-viewmodel = { group = "io.insert-koin", name = "koin-compose-viewmodel", version.ref = "koin" }
 koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
 
-sqldelight-android-driver = { group = "app.cash.sqldelight", name = "android-driver", version.ref = "sqldelight" }
-sqldelight-native-driver = { group = "app.cash.sqldelight", name = "native-driver", version.ref = "sqldelight" }
-sqldelight-coroutines = { group = "app.cash.sqldelight", name = "coroutines-extensions", version.ref = "sqldelight" }
-sqldelight-primitive-adapters = { group = "app.cash.sqldelight", name = "primitive-adapters", version.ref = "sqldelight" }
-
 firebase-auth = { group = "dev.gitlive", name = "firebase-auth", version.ref = "firebase-kotlin-sdk" }
 firebase-firestore = { group = "dev.gitlive", name = "firebase-firestore", version.ref = "firebase-kotlin-sdk" }
 firebase-common = { group = "dev.gitlive", name = "firebase-common", version.ref = "firebase-kotlin-sdk" }
@@ -56,5 +49,4 @@ kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 googleServices = { id = "com.google.gms.google-services", version.ref = "google-services" }
