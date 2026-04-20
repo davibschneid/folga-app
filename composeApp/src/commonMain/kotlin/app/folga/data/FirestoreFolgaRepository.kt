@@ -37,12 +37,24 @@ class FirestoreFolgaRepository(
     }
 
     override suspend fun cancel(id: String) {
-        // Patch only the `status` field instead of rewriting the whole
-        // document. A full set() could race with SwapRepository.accept(),
-        // which flips this folga's `userId` inside a transaction — if we
-        // serialized a stale `userId` back to the doc, the ownership swap
-        // would silently revert.
-        folgas.document(id).update("status" to FolgaStatus.CANCELLED.name)
+        // Wrap in a transaction with a SCHEDULED guard so cancel never
+        // overwrites a status that an already-committed accept() just
+        // set to SWAPPED. The symmetrical guard on the swap side
+        // (SwapRepository.accept + resolvePending) protects the reverse
+        // race; together they guarantee that after a swap is accepted no
+        // concurrent cancel can corrupt either folga's state.
+        val ref = folgas.document(id)
+        firestore.runTransaction {
+            val snap = get(ref)
+            if (!snap.exists) return@runTransaction
+            val current = snap.data(FolgaDto.serializer())
+            if (current.status != FolgaStatus.SCHEDULED.name) return@runTransaction
+            set(
+                documentRef = ref,
+                strategy = FolgaDto.serializer(),
+                data = current.copy(status = FolgaStatus.CANCELLED.name),
+            )
+        }
     }
 
     override suspend fun findById(id: String): Folga? {
