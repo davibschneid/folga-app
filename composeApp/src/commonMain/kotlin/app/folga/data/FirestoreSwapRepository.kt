@@ -75,6 +75,12 @@ class FirestoreSwapRepository(
             if (!fromSnap.exists || !toSnap.exists) return@runTransaction
             val from = fromSnap.data(FolgaDto.serializer())
             val to = toSnap.data(FolgaDto.serializer())
+            // Don't resurrect a CANCELLED / SWAPPED folga. Only folgas
+            // still SCHEDULED are valid targets for the ownership swap —
+            // otherwise a user who cancelled before the other side hit
+            // accept would see their folga flip back to SWAPPED.
+            if (from.status != FolgaStatus.SCHEDULED.name ||
+                to.status != FolgaStatus.SCHEDULED.name) return@runTransaction
 
             set(
                 documentRef = fromRef,
