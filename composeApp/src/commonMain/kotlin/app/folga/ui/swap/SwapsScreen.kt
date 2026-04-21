@@ -34,6 +34,7 @@ import app.folga.domain.FolgaStatus
 import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
 import app.folga.domain.User
+import app.folga.ui.common.formatBrazilian
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -165,7 +166,7 @@ private fun FolgaChips(
             FilterChip(
                 selected = selectedId == folga.id,
                 onClick = { onSelect(folga.id) },
-                label = { Text("${folga.date} · $owner") },
+                label = { Text("${folga.date.formatBrazilian()} · $owner") },
                 colors = FilterChipDefaults.filterChipColors(),
             )
         }
