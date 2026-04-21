@@ -38,6 +38,14 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.koin.android)
+            // Credential Manager + Sign in with Google on Android.
+            // `credentials-play-services-auth` is the Play Services backend
+            // that actually surfaces Google accounts; `googleid` provides the
+            // `GetGoogleIdOption` / `GoogleIdTokenCredential` types used to
+            // request and parse the Google ID token.
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.play.services.auth)
+            implementation(libs.googleid)
         }
 
         commonMain.dependencies {

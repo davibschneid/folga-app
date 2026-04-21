@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.folga.ui.common.ShiftDropdown
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -79,6 +80,11 @@ fun RegisterScreen(
             label = { Text("Equipe / Setor") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        ShiftDropdown(
+            selected = state.shift,
+            onSelect = viewModel::onShiftChange,
         )
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))

@@ -2,6 +2,8 @@ package app.folga.ui.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.folga.auth.GoogleSignInProvider
+import app.folga.auth.GoogleSignInResult
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +21,7 @@ data class LoginUiState(
 
 class LoginViewModel(
     private val authRepository: AuthRepository,
+    private val googleSignInProvider: GoogleSignInProvider,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -40,6 +43,40 @@ class LoginViewModel(
                 _state.update { it.copy(isLoading = false, error = result.message) }
             } else {
                 _state.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    /**
+     * Triggers the native Google Sign-In flow. On Android this shows the
+     * Credential Manager bottom sheet; on iOS it opens the GoogleSignIn SDK
+     * flow. The resulting ID token is exchanged for a Firebase credential by
+     * [AuthRepository.signInWithGoogleIdToken].
+     */
+    fun signInWithGoogle() {
+        _state.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            when (val google = googleSignInProvider.signIn()) {
+                is GoogleSignInResult.Cancelled -> {
+                    // User backed out — clear the spinner silently, don't show
+                    // an error (dismissing the sheet is a valid choice).
+                    _state.update { it.copy(isLoading = false) }
+                }
+                is GoogleSignInResult.Failure -> {
+                    _state.update { it.copy(isLoading = false, error = google.message) }
+                }
+                is GoogleSignInResult.Success -> {
+                    val result = authRepository.signInWithGoogleIdToken(
+                        idToken = google.idToken,
+                        email = google.email,
+                        name = google.displayName,
+                    )
+                    if (result is AuthResult.Failure) {
+                        _state.update { it.copy(isLoading = false, error = result.message) }
+                    } else {
+                        _state.update { it.copy(isLoading = false) }
+                    }
+                }
             }
         }
     }

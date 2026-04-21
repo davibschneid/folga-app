@@ -1,4 +1,4 @@
-package app.folga.ui.register
+package app.folga.ui.completarcadastro
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,10 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class RegisterUiState(
-    val name: String = "",
-    val email: String = "",
-    val password: String = "",
+data class CompletarCadastroUiState(
     val registrationNumber: String = "",
     val team: String = "",
     val shift: Shift = Shift.MANHA,
@@ -22,34 +19,37 @@ data class RegisterUiState(
     val error: String? = null,
 )
 
-class RegisterViewModel(
+/**
+ * Fluxo de "completar cadastro" pós Google Sign-In. Google nos dá nome e
+ * email, mas não tem matrícula/equipe/turno — então criamos um perfil
+ * mínimo no Firestore (ver [AuthRepository.signInWithGoogleIdToken]) e o
+ * App.kt redireciona pra cá quando detecta que o perfil ainda não tem esses
+ * campos preenchidos. Ao salvar, chamamos [AuthRepository.completeProfile]
+ * que atualiza o doc no Firestore.
+ */
+class CompletarCadastroViewModel(
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(RegisterUiState())
-    val state: StateFlow<RegisterUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(CompletarCadastroUiState())
+    val state: StateFlow<CompletarCadastroUiState> = _state.asStateFlow()
 
-    fun onNameChange(v: String) = _state.update { it.copy(name = v, error = null) }
-    fun onEmailChange(v: String) = _state.update { it.copy(email = v, error = null) }
-    fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
-    fun onRegistrationNumberChange(v: String) = _state.update { it.copy(registrationNumber = v, error = null) }
+    fun onRegistrationNumberChange(v: String) =
+        _state.update { it.copy(registrationNumber = v, error = null) }
+
     fun onTeamChange(v: String) = _state.update { it.copy(team = v, error = null) }
+
     fun onShiftChange(v: Shift) = _state.update { it.copy(shift = v, error = null) }
 
     fun submit() {
         val c = _state.value
-        if (c.name.isBlank() || c.email.isBlank() || c.password.length < 6 ||
-            c.registrationNumber.isBlank() || c.team.isBlank()
-        ) {
-            _state.update { it.copy(error = "Preencha todos os campos (senha ≥ 6 caracteres)") }
+        if (c.registrationNumber.isBlank() || c.team.isBlank()) {
+            _state.update { it.copy(error = "Preencha matrícula e equipe") }
             return
         }
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val result = authRepository.signUpWithEmail(
-                email = c.email.trim(),
-                password = c.password,
-                name = c.name.trim(),
+            val result = authRepository.completeProfile(
                 registrationNumber = c.registrationNumber.trim(),
                 team = c.team.trim(),
                 shift = c.shift,
@@ -60,5 +60,9 @@ class RegisterViewModel(
                 _state.update { it.copy(isLoading = false) }
             }
         }
+    }
+
+    fun signOut() {
+        viewModelScope.launch { authRepository.signOut() }
     }
 }

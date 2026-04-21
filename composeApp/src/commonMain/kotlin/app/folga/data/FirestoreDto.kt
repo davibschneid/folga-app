@@ -2,6 +2,7 @@ package app.folga.data
 
 import app.folga.domain.Folga
 import app.folga.domain.FolgaStatus
+import app.folga.domain.Shift
 import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
 import app.folga.domain.User
@@ -23,6 +24,9 @@ internal data class UserDto(
     val name: String = "",
     val registrationNumber: String = "",
     val team: String = "",
+    // Nullable + defaulted so docs created before PR #8 (pré-turno) keep
+    // deserializing. `Shift.fromString` falls back to MANHA on unknown/missing.
+    val shift: String? = null,
     val createdAt: Long = 0L,
 )
 
@@ -55,6 +59,7 @@ internal fun User.toDto(): UserDto = UserDto(
     name = name,
     registrationNumber = registrationNumber,
     team = team,
+    shift = shift.name,
     createdAt = createdAt.toEpochMilliseconds(),
 )
 
@@ -64,6 +69,7 @@ internal fun UserDto.toDomain(): User = User(
     name = name,
     registrationNumber = registrationNumber,
     team = team,
+    shift = Shift.fromString(shift),
     createdAt = Instant.fromEpochMilliseconds(createdAt),
 )
 
