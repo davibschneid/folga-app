@@ -76,16 +76,69 @@ no repo). No navegador de arquivos do Xcode, arraste-o pra dentro do target
 iosApp**. Sem isso o `FirebaseApp.configure()` crasha com
 `Could not locate configuration file`.
 
-## 4. Adicionar Firebase + dependências nativas (SPM)
+## 4. Adicionar Firebase + GoogleSignIn (SPM)
 
 Recomendo SPM (vem com o Xcode, sem CocoaPods). Em **File → Add Package
-Dependencies…**, adicione:
+Dependencies…**, adicione dois pacotes:
 
 1. **Firebase iOS SDK** — `https://github.com/firebase/firebase-ios-sdk`
    - Version: `11.0.0` ou superior
    - Products a marcar no target `iosApp`:
      - `FirebaseAuth`
      - `FirebaseFirestore`
+
+2. **GoogleSignIn-iOS** — `https://github.com/google/GoogleSignIn-iOS`
+   - Version: `7.1.0` ou superior
+   - Products a marcar no target `iosApp`:
+     - `GoogleSignIn`
+     - `GoogleSignInSwift`
+
+### 4.1 Copiar `GoogleSignInBridge.swift` pro target
+
+No Xcode: arraste `_templates/GoogleSignInBridge.swift` pra dentro do target
+`iosApp` (mesmo jeito que os outros templates). Esse arquivo é o Swift-side
+do `IosGoogleSignInBridge` que o Kotlin shared usa pra chamar o SDK nativo —
+veja [`_templates/GoogleSignInBridge.swift`](./_templates/GoogleSignInBridge.swift).
+O `iosAppApp.swift` do template já instala o bridge em `init()` via
+`GoogleSignInBridgeBootstrap.install()`, então você não precisa chamar nada
+manualmente depois.
+
+### 4.2 URL scheme (`REVERSED_CLIENT_ID`) no Info.plist
+
+O GoogleSignIn SDK volta do browser via um custom URL scheme. Abra seu
+`GoogleService-Info.plist` e copie o valor de `REVERSED_CLIENT_ID` (algo como
+`com.googleusercontent.apps.123456789-abcdef`). Depois em **Signing &
+Capabilities → Info → URL Types → +** crie uma entrada com:
+
+- **Identifier**: `google`
+- **URL Schemes**: (cole o `REVERSED_CLIENT_ID`)
+
+Sem isso, o Google Sign-In abre o consentimento mas **nunca volta pro app**
+— ele fica preso na tela do browser Safari.
+
+### 4.3 Conferir o `iosAppApp.swift`
+
+O template atualizado já tem:
+
+```swift
+init() {
+    FirebaseApp.configure()
+    GoogleSignInBridgeBootstrap.install()
+}
+
+var body: some Scene {
+    WindowGroup {
+        ContentView()
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
+            }
+    }
+}
+```
+
+O `onOpenURL` é quem recebe o callback do OAuth e passa pro SDK fechar o
+fluxo. Sem essa linha o app cai no `RootViewController`, ignora o callback
+e o `signIn(withPresenting:)` fica esperando pra sempre.
 
 > Opção CocoaPods (se preferir): veja a seção [CocoaPods alternativo](#cocoapods-alternativo)
 > no fim deste arquivo. Os dois caminhos são equivalentes; não misture.
@@ -185,6 +238,8 @@ Caso prefira Pods:
    target 'iosApp' do
      pod 'FirebaseAuth', '~> 11.0'
      pod 'FirebaseFirestore', '~> 11.0'
+     pod 'GoogleSignIn', '~> 7.1'
+     pod 'GoogleSignInSwiftSupport', '~> 7.1'
    end
    ```
 3. `cd iosApp && pod install` — a partir daí abra o `.xcworkspace`, não o
@@ -210,6 +265,13 @@ Caso prefira Pods:
   configured"** → a chamada precisa estar dentro do `init()` do `App`, antes
   do primeiro acesso a `Auth.auth()` / `Firestore.firestore()`. O template já
   faz isso.
+- **Tocar em "Entrar com Google" mostra "GoogleSignIn não inicializado no
+  iOS..."** → você esqueceu de copiar o `GoogleSignInBridge.swift` pro
+  target, ou o `GoogleSignInBridgeBootstrap.install()` não roda no `init()`.
+  Confira §4.1 / §4.3.
+- **O browser abre mas nunca volta pro app** → faltou o URL Type com o
+  `REVERSED_CLIENT_ID`, ou faltou o `.onOpenURL { GIDSignIn.sharedInstance.handle(url) }`
+  no `iosAppApp.swift`. Confira §4.2 e §4.3.
 - **Gradle task falha com `Could not connect to daemon`** → desabilite o
   Gradle daemon no Xcode: em *Preferences → Locations → Command Line Tools*
   garanta que está apontando pra Xcode 15+, e adicione

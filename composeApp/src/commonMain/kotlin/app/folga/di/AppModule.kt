@@ -8,6 +8,7 @@ import app.folga.domain.AuthRepository
 import app.folga.domain.FolgaRepository
 import app.folga.domain.SwapRepository
 import app.folga.domain.UserRepository
+import app.folga.ui.completarcadastro.CompletarCadastroViewModel
 import app.folga.ui.folgas.FolgasViewModel
 import app.folga.ui.login.LoginViewModel
 import app.folga.ui.register.RegisterViewModel
@@ -31,8 +32,9 @@ val appModule = module {
     single<SwapRepository> { FirestoreSwapRepository() }
     single<AuthRepository> { FirebaseAuthRepository(get()) }
 
-    factory { LoginViewModel(get()) }
+    factory { LoginViewModel(get(), get()) }
     factory { RegisterViewModel(get()) }
+    factory { CompletarCadastroViewModel(get()) }
     factory { FolgasViewModel(get(), get(), get()) }
     factory { SwapsViewModel(get(), get(), get(), get()) }
 }

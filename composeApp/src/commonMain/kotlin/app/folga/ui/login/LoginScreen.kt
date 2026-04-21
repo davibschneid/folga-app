@@ -105,13 +105,22 @@ fun LoginScreen(
         OutlinedButton(
             onClick = onNavigateToRegister,
             modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isLoading,
         ) {
             Text("Criar conta")
         }
         Spacer(Modifier.height(24.dp))
-        Text(
-            text = "Login com Google em breve",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        // "Entrar com Google" uses the shared native Google Sign-In flow:
+        // Credential Manager on Android, GoogleSignIn SDK via Swift bridge
+        // on iOS. We intentionally don't style it as a fancy branded button —
+        // Material3 OutlinedButton is fine for now and avoids pulling in a
+        // Google branding asset just to look official.
+        OutlinedButton(
+            onClick = viewModel::signInWithGoogle,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isLoading,
+        ) {
+            Text("Entrar com Google")
+        }
     }
 }

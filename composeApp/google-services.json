@@ -12,7 +12,20 @@
           "package_name": "app.folga.android"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "618207523898-vjhsnr6qfl5sae4dasn0mppj2gb74jkf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.folga.android",
+            "certificate_hash": "cc505255a81810b7b81d54b0ad1ceb132e737452"
+          }
+        },
+        {
+          "client_id": "618207523898-pr0aj7j18hn96frsaggfkjaiqo3eq4af.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBKZrkOwdJSjQ7BhOiVkNYNbFMcpZkGj04"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "618207523898-pr0aj7j18hn96frsaggfkjaiqo3eq4af.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "618207523898-imc20vgd3kdm7rloq789am36lldj3tke.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.folga.ios"
+              }
+            }
+          ]
         }
       }
     }

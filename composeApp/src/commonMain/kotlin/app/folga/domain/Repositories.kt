@@ -48,16 +48,30 @@ interface AuthRepository {
         name: String,
         registrationNumber: String,
         team: String,
+        shift: Shift,
     ): AuthResult
 
     /**
      * Sign in with a Google ID token. On Android/iOS the token is obtained via the
      * platform-specific Google Sign-In SDK and then passed to this method.
+     * For brand-new Google users this creates a minimal profile with empty
+     * matrícula/equipe — the UI then routes the user to a "completar cadastro"
+     * screen that calls [completeProfile] before letting them into the app.
      */
     suspend fun signInWithGoogleIdToken(
         idToken: String,
         email: String,
         name: String,
+    ): AuthResult
+
+    /**
+     * Fills in the fields that Google Sign-In can't supply on its own
+     * (matrícula, equipe, turno) for the currently signed-in user.
+     */
+    suspend fun completeProfile(
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
     ): AuthResult
 
     suspend fun signOut()

@@ -2,6 +2,7 @@ package app.folga.data
 
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
+import app.folga.domain.Shift
 import app.folga.domain.User
 import app.folga.domain.UserRepository
 import dev.gitlive.firebase.Firebase
@@ -11,6 +12,7 @@ import dev.gitlive.firebase.auth.FirebaseAuthInvalidCredentialsException
 import dev.gitlive.firebase.auth.FirebaseAuthInvalidUserException
 import dev.gitlive.firebase.auth.FirebaseAuthUserCollisionException
 import dev.gitlive.firebase.auth.FirebaseUser
+import dev.gitlive.firebase.auth.GoogleAuthProvider
 import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +66,7 @@ class FirebaseAuthRepository(
         name: String,
         registrationNumber: String,
         team: String,
+        shift: Shift,
     ): AuthResult {
         val fbUser = runCatching { auth.createUserWithEmailAndPassword(email, password).user }
             .getOrElse {
@@ -77,6 +80,7 @@ class FirebaseAuthRepository(
             name = name,
             registrationNumber = registrationNumber,
             team = team,
+            shift = shift,
             createdAt = Clock.System.now(),
         )
 
@@ -102,10 +106,77 @@ class FirebaseAuthRepository(
         idToken: String,
         email: String,
         name: String,
-    ): AuthResult =
-        // Google Sign-In wiring lives in platform-specific code and will be
-        // plugged in a follow-up PR together with the native Google Sign-In SDKs.
-        AuthResult.Failure("Login com Google ainda não disponível")
+    ): AuthResult = runCatching {
+        // Exchange the Google ID token for a Firebase credential. `null`
+        // access token is the supported value when using Credential Manager /
+        // GoogleSignIn — only the ID token is required.
+        val credential = GoogleAuthProvider.credential(idToken, null)
+        val fbUser = auth.signInWithCredential(credential).user
+            ?: return@runCatching AuthResult.Failure("Falha ao autenticar com Google")
+
+        // First-time Google sign-in: no profile yet. Create a minimal one so
+        // the app has something to render; the user can fill matrícula and
+        // equipe later from a profile screen (TODO — out of scope for this
+        // PR). Email/senha signups already populate those fields in the
+        // cadastro form.
+        val existing = resolveProfile(fbUser)
+        val profile = existing ?: User(
+            id = fbUser.uid,
+            email = fbUser.email ?: email,
+            name = name.ifBlank { fbUser.email ?: email },
+            registrationNumber = "",
+            team = "",
+            shift = Shift.MANHA,
+            createdAt = Clock.System.now(),
+        )
+
+        if (existing == null) {
+            runCatching { userRepository.upsert(profile) }
+                .onFailure { upsertError ->
+                    // Keep the Firebase user signed in (avoids a second Google
+                    // prompt loop) but surface the error so the UI can retry
+                    // the upsert on the next screen.
+                    return@runCatching AuthResult.Failure(
+                        upsertError.message ?: "Erro ao salvar perfil. Tente novamente."
+                    )
+                }
+        }
+
+        manualUser.value = profile
+        AuthResult.Success(profile)
+    }.getOrElse { AuthResult.Failure(it.humanMessage("Falha ao entrar com Google")) }
+
+    override suspend fun completeProfile(
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
+    ): AuthResult = runCatching {
+        val fbUser = auth.currentUser
+            ?: return@runCatching AuthResult.Failure("Nenhum usuário logado")
+
+        // Start from the existing profile so we don't clobber name/email and so
+        // `createdAt` stays stable. Fall back to a fresh profile if, for some
+        // reason, the user doc doesn't exist yet (e.g. first-run after Google
+        // sign-in where the initial upsert failed).
+        val base = resolveProfile(fbUser) ?: User(
+            id = fbUser.uid,
+            email = fbUser.email ?: "",
+            name = fbUser.email ?: "",
+            registrationNumber = "",
+            team = "",
+            shift = Shift.MANHA,
+            createdAt = Clock.System.now(),
+        )
+
+        val updated = base.copy(
+            registrationNumber = registrationNumber,
+            team = team,
+            shift = shift,
+        )
+        userRepository.upsert(updated)
+        manualUser.value = updated
+        AuthResult.Success(updated)
+    }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar perfil") }
 
     override suspend fun signOut() {
         runCatching { auth.signOut() }
