@@ -1,8 +1,8 @@
 package app.folga.di
 
-import app.folga.db.DatabaseDriverFactory
 import org.koin.dsl.module
 
 actual val platformModule = module {
-    single { DatabaseDriverFactory(get()) }
+    // No platform-specific bindings: Firestore + Firebase Auth are configured
+    // by the google-services plugin's ContentProvider on Android.
 }

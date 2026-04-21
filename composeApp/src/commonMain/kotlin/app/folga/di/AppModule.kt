@@ -1,11 +1,9 @@
 package app.folga.di
 
-import app.folga.data.SqlDelightFolgaRepository
-import app.folga.data.SqlDelightSwapRepository
-import app.folga.data.SqlDelightUserRepository
-import app.folga.data.StubAuthRepository
-import app.folga.db.DatabaseDriverFactory
-import app.folga.db.FolgaDatabase
+import app.folga.data.FirebaseAuthRepository
+import app.folga.data.FirestoreFolgaRepository
+import app.folga.data.FirestoreSwapRepository
+import app.folga.data.FirestoreUserRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.FolgaRepository
 import app.folga.domain.SwapRepository
@@ -28,12 +26,10 @@ fun initKoin(appDeclaration: KoinAppDeclaration = {}): KoinApplication =
 expect val platformModule: org.koin.core.module.Module
 
 val appModule = module {
-    single { FolgaDatabase(get<DatabaseDriverFactory>().createDriver()) }
-
-    single<UserRepository> { SqlDelightUserRepository(get()) }
-    single<FolgaRepository> { SqlDelightFolgaRepository(get()) }
-    single<SwapRepository> { SqlDelightSwapRepository(get()) }
-    single<AuthRepository> { StubAuthRepository(get(), get()) }
+    single<UserRepository> { FirestoreUserRepository() }
+    single<FolgaRepository> { FirestoreFolgaRepository() }
+    single<SwapRepository> { FirestoreSwapRepository() }
+    single<AuthRepository> { FirebaseAuthRepository(get()) }
 
     factory { LoginViewModel(get()) }
     factory { RegisterViewModel(get()) }

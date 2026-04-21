@@ -1,8 +1,9 @@
 package app.folga.di
 
-import app.folga.db.DatabaseDriverFactory
 import org.koin.dsl.module
 
 actual val platformModule = module {
-    single { DatabaseDriverFactory() }
+    // No platform-specific bindings: Firestore + Firebase Auth are initialized
+    // by the iOS host calling `FirebaseApp.configure()` at startup (see
+    // iosApp/README.md).
 }
