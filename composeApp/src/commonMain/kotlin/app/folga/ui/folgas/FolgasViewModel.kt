@@ -137,16 +137,24 @@ class FolgasViewModel(
 
     fun reserve() {
         val me = currentUser.value ?: run {
-            _state.update { it.copy(error = "Faça login primeiro") }
+            // Todos os paths que setam `error` devem também limpar
+            // `successMessage` pra a UI não renderizar os dois ao mesmo
+            // tempo (flagged pelo Devin Review no PR #16).
+            _state.update { it.copy(error = "Faça login primeiro", successMessage = null) }
             return
         }
         val dateStr = _state.value.newFolgaDate.trim()
         val date = runCatching { LocalDate.parse(dateStr) }.getOrNull()
         if (date == null) {
-            _state.update { it.copy(error = "Selecione uma data válida no calendário") }
+            _state.update {
+                it.copy(
+                    error = "Selecione uma data válida no calendário",
+                    successMessage = null,
+                )
+            }
             return
         }
-        _state.update { it.copy(isLoading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null, successMessage = null) }
         viewModelScope.launch {
             runCatching {
                 folgaRepository.reserve(
