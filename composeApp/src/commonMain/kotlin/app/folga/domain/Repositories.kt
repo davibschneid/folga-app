@@ -92,5 +92,18 @@ interface AuthRepository {
         shift: Shift,
     ): AuthResult
 
+    /**
+     * Atualiza os campos editáveis do perfil do usuário logado: nome,
+     * matrícula, equipe e turno. E-mail e role não são editáveis por aqui
+     * — e-mail é imutável pelo Firebase Auth e role só muda via
+     * tela de Administração.
+     */
+    suspend fun updateProfile(
+        name: String,
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
+    ): AuthResult
+
     suspend fun signOut()
 }

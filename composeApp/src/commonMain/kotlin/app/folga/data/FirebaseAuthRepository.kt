@@ -280,6 +280,29 @@ class FirebaseAuthRepository(
         AuthResult.Success(updated)
     }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar perfil") }
 
+    override suspend fun updateProfile(
+        name: String,
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
+    ): AuthResult = runCatching {
+        val fbUser = auth.currentUser
+            ?: return@runCatching AuthResult.Failure("Nenhum usuário logado")
+        val base = resolveProfile(fbUser)
+            ?: return@runCatching AuthResult.Failure(
+                "Perfil não encontrado. Conclua o cadastro antes de editar."
+            )
+        val updated = base.copy(
+            name = name,
+            registrationNumber = registrationNumber,
+            team = team,
+            shift = shift,
+        )
+        userRepository.upsert(updated)
+        manualUser.value = updated
+        AuthResult.Success(updated)
+    }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar perfil") }
+
     override suspend fun signOut() {
         runCatching { auth.signOut() }
         manualUser.value = null

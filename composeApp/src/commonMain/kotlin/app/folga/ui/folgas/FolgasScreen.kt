@@ -54,6 +54,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun FolgasScreen(
     onOpenSwaps: () -> Unit,
+    onOpenProfile: () -> Unit,
     // Nullo quando o usuário logado não é admin — a TopAppBar esconde o
     // botão de Admin nesse caso. Manter null (ao invés de um lambda vazio)
     // garante que a UI não mostre um botão "morto".
@@ -76,6 +77,12 @@ fun FolgasScreen(
                         ) {
                             Text("Admin")
                         }
+                    }
+                    OutlinedButton(
+                        onClick = onOpenProfile,
+                        modifier = Modifier.padding(end = 8.dp),
+                    ) {
+                        Text("Perfil")
                     }
                     OutlinedButton(onClick = onOpenSwaps, modifier = Modifier.padding(end = 12.dp)) {
                         Text("Trocas")
