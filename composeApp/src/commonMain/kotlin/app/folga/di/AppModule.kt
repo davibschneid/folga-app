@@ -40,7 +40,7 @@ val appModule = module {
     factory { LoginViewModel(get(), get()) }
     factory { RegisterViewModel(get()) }
     factory { CompletarCadastroViewModel(get()) }
-    factory { FolgasViewModel(get(), get(), get()) }
+    factory { FolgasViewModel(get(), get(), get(), get()) }
     factory { SwapsViewModel(get(), get(), get(), get()) }
     factory { AdminViewModel(get(), get(), get()) }
     factory { ProfileViewModel(get()) }
