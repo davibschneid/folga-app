@@ -32,46 +32,50 @@ Obrigatório no cadastro. Define a quota de trocas (seção 3). Pode ser
 `MANHA`, `TARDE` ou `NOITE`. Perfis legados sem turno assumem `MANHA` como
 fallback (leitura defensiva no Firestore).
 
-## 2. Folgas
+## 2. Dias de trabalho
 
-### 2.1 Reservar folga ✅ (PR #1)
+> **Terminologia (atualizada):** o que o app internamente chama de `Folga`
+> é exibido na UI como **"dia de trabalho"**. Quando o usuário cadastra um
+> dia, ele está marcando uma data de trabalho que **quer trocar com alguém**
+> — ou seja, pedir que outro colega trabalhe no lugar dele naquele dia. O
+> domínio/persistência (`Folga`, `folgas/{id}`) mantém o nome antigo para
+> evitar reescrever dados existentes no Firestore.
+
+### 2.1 Cadastrar dia de trabalho ✅ (PR #1)
 Usuário escolhe uma data via calendário (Material3 DatePicker, formato
-visual DD/MM/AAAA) e opcionalmente uma observação. A folga é criada em
+visual DD/MM/AAAA) e opcionalmente uma observação. O dia é criado em
 `folgas/{id}` com:
 
-- `userId`: quem reservou
+- `userId`: quem cadastrou
 - `date`: data escolhida
 - `status`: `SCHEDULED`
 - `note`: observação opcional
 
-### 2.2 Status da folga
-- `SCHEDULED` — reservada, ainda válida
+### 2.2 Status
+- `SCHEDULED` — cadastrada, ainda válida
 - `SWAPPED` — trocada com outro usuário (dono virou o outro)
 - `CANCELLED` — cancelada pelo próprio dono
-- `COMPLETED` — reservado para uso futuro (marcar folga passada)
+- `COMPLETED` — reservado para uso futuro (marcar dia passado)
 
-### 2.3 Cancelar folga ✅ (PR #1, PR #3)
-Só o dono da folga pode cancelar. Só é possível cancelar folgas em
+### 2.3 Cancelar dia cadastrado ✅ (PR #1, PR #3)
+Só o dono do dia pode cancelar. Só é possível cancelar dias em
 `SCHEDULED`. A operação é transacional no Firestore para evitar corrida
-com `accept()` de uma troca que estava mirando nessa folga.
+com `accept()` de uma troca que estava mirando nesse dia.
 
-## 3. Trocas de folga
+## 3. Trocas de dia de trabalho
 
 ### 3.1 Fluxo geral ✅ (PR #1, PR #3)
 Quando **A** solicita uma troca com **B**, o pedido é: _"B, trabalhe no
-meu lugar no dia da minha folga. Em troca, eu trabalho no seu lugar no
-dia da sua folga."_
+meu lugar no dia X. Em troca, eu trabalho no seu lugar no dia Y."_
 
-1. **A** (requester) escolhe uma folga sua (dia em que A está de folga
-   originalmente) e uma folga de **B** (dia em que B está de folga
-   originalmente).
+1. **A** (requester) escolhe um dia seu cadastrado (dia que A quer trocar
+   com alguém) e um dia cadastrado por **B**.
 2. **A** solicita troca. Status inicial: `PENDING`.
 3. **B** pode **Aceitar**, **Recusar** ou **A** pode **Cancelar**,
    desde que a troca ainda esteja `PENDING`.
-4. Ao aceitar: as duas folgas trocam de dono em uma transação Firestore.
-   A folga de A vira de B (B agora fica de folga nesse dia e A trabalha),
-   a folga de B vira de A (A fica de folga nesse dia e B trabalha).
-   Ambas passam a `SWAPPED`.
+4. Ao aceitar: os dois dias trocam de dono em uma transação Firestore.
+   Ambos passam a `SWAPPED`. Na prática, A trabalha no dia que era de B
+   e B trabalha no dia que era de A.
 
 ### 3.2 Quota de trocas por período ✅ (PR #9)
 
@@ -100,12 +104,16 @@ virou `ACCEPTED`). Para trocas antigas que não tenham esse timestamp, cai
 pra `createdAt` como fallback.
 
 **Comportamento na UI:**
-- Tela **Trocas** exibe chip com `Trocas no período: N/Quota · Turno`.
-- Ao clicar **Solicitar troca** com quota já atingida, aparece um
-  `AlertDialog` de aviso. O usuário pode **Continuar** (segue com a
-  solicitação mesmo assim) ou **Cancelar** (volta sem enviar).
-- A quota nunca bloqueia a solicitação — é só aviso preventivo, para que o
-  usuário saiba que aquela troca vai passar do limite se o colega aceitar.
+- Tela **Trocar dia de trabalho** exibe chip com `Trocas restantes: X de Y
+  · Turno`. A chip fica com cor de erro (vermelha) quando o limite é
+  atingido.
+- Quando o usuário atinge o limite, o botão **Solicitar troca** fica
+  desabilitado e mostra o texto "Limite de trocas atingido no período".
+- `SwapsViewModel.requestSwap()` também rejeita a submissão quando a quota
+  está batida (defesa-em-profundidade — cobre race condition onde o
+  estado da UI está desatualizado).
+- A quota agora **bloqueia** a solicitação (antes era aviso
+  não-bloqueante).
 
 ### 3.3 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
 
@@ -114,14 +122,14 @@ pra `createdAt` como fallback.
 
 **Status:** adiada. Para aplicar essa regra o app precisa saber quando
 cada usuário está de plantão, o que depende de uma **escala de plantão**
-que ainda não está modelada no sistema. Hoje o app só conhece as *folgas*,
-não os dias de trabalho — qualquer checagem seria uma aproximação que
-pode gerar falso-positivo.
+que ainda não está modelada no sistema. Hoje o app só conhece os dias de
+trabalho que o usuário cadastrou para trocar — qualquer checagem seria
+uma aproximação que pode gerar falso-positivo.
 
 **Próximo passo:** definir como cadastrar a escala (ex.: cada usuário tem
 um turno semanal fixo? Escala 12x36? Calendário por colaborador?). Depois
-implementamos em um PR separado, aplicando a regra tanto na reserva de
-folga quanto na aceitação de troca.
+implementamos em um PR separado, aplicando a regra tanto no cadastro de
+dia quanto na aceitação de troca.
 
 ## 4. Administração ✅ (PR #10)
 
@@ -146,8 +154,9 @@ publicar nova versão.
 
 ### 4.2 Tela de administração ✅ (PR #10)
 
-Botão **Admin** aparece na TopAppBar da tela **Minhas Folgas** só quando
-`currentUser.role == ADMIN` — usuário comum não vê a porta de entrada.
+Botão **Admin** aparece na TopAppBar da tela **Meus dias de trabalho** só
+quando `currentUser.role == ADMIN` — usuário comum não vê a porta de
+entrada.
 
 A tela tem duas abas:
 
@@ -261,17 +270,20 @@ sincroniza quando voltar.
 
 ## 6. Suporte ao usuário — perguntas frequentes
 
-### "Por que meu botão de Solicitar troca está mostrando um aviso?"
-Você já atingiu a quota de trocas aceitas no período corrente (16→15).
-O aviso é preventivo — se a troca for aceita, você passa do limite. Você
-pode confirmar e seguir, ou cancelar.
+### "Por que meu botão de Solicitar troca está desabilitado?"
+Você atingiu a quota de trocas aceitas no período corrente (dia 16 ao dia
+15). O botão volta a ficar disponível quando um dos seguintes ocorre:
+- Começa um novo período (dia 16).
+- Uma das suas trocas aceitas no período é cancelada/revertida (hoje o
+  app não suporta cancelar troca já aceita — então, na prática, só com a
+  virada do período).
 
-### "Minha folga sumiu depois que o colega aceitou a troca — é bug?"
+### "Meu dia cadastrado sumiu depois que o colega aceitou a troca — é bug?"
 Não — isso é o comportamento esperado. Quando você pede uma troca, você
-está pedindo que o colega **trabalhe no seu lugar** naquele dia: a sua
-folga original passa pra ele, e a folga dele passa pra você. As duas
-folgas ficam com status `SWAPPED` e aparecem no histórico nas abas
-**Enviadas** / **Recebidas** da tela de Trocas.
+está pedindo que o colega **trabalhe no seu lugar** naquele dia: o seu dia
+cadastrado passa pra ele, e o dia cadastrado dele passa pra você. Os dois
+ficam com status `SWAPPED` e aparecem na tela **Trocar dia de trabalho**
+nas abas **Enviadas** / **Recebidas**.
 
 ### "Não consigo entrar com minha conta Google — ela diz não autorizada."
 O admin ainda não adicionou seu e-mail à whitelist. Peça para ele incluir
@@ -289,4 +301,6 @@ a regra de plantões seguidos do noturno.
 
 ---
 
-Última atualização: PR #10 (admin + whitelist de e-mails).
+Última atualização: rename para "dia de trabalho", bloco "Trocas
+agendadas" na tela inicial, quota passa a ser bloqueante + exibida como
+"trocas restantes".

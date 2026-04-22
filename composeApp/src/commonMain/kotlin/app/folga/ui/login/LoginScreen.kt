@@ -46,7 +46,7 @@ fun LoginScreen(
     ) {
         Text("Easy Folgas", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
-        Text("Reserve e troque suas folgas", style = MaterialTheme.typography.bodyMedium)
+        Text("Cadastre e troque seus dias de trabalho", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(32.dp))
 
         OutlinedTextField(

@@ -2,6 +2,8 @@ package app.folga.ui.swap
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -58,7 +59,7 @@ fun SwapsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Trocas de Folga") },
+                title = { Text("Trocar dia de trabalho") },
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text("Voltar") }
                 },
@@ -72,20 +73,38 @@ fun SwapsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             quota?.let { q ->
-                // Chip informativo: usuário vê sua quota corrente antes de
-                // solicitar uma troca, evitando surpresa no diálogo de aviso.
+                // Chip informativo com a quota restante. Cor muda quando
+                // o usuário atinge o limite, pra deixar óbvio que novas
+                // solicitações vão ser bloqueadas.
                 AssistChip(
                     onClick = {},
-                    label = { Text(quotaChipLabel(q.shift, q.used, q.quota)) },
-                    colors = AssistChipDefaults.assistChipColors(),
+                    label = { Text(quotaChipLabel(q.shift, q.remaining, q.quota)) },
+                    colors = if (q.atOrAboveQuota) {
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            labelColor = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    } else AssistChipDefaults.assistChipColors(),
                 )
                 Spacer(Modifier.height(8.dp))
             }
 
             Text("Solicitar troca", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                // Explicação curta do modelo pra o usuário entender pra quem
+                // cada dia vai. "Meu dia" = dia que eu cadastrei e quero que
+                // alguém trabalhe por mim; "Dia do colega" = dia que ele
+                // cadastrou e eu vou trabalhar por ele.
+                text = "Selecione um dia seu e um dia do colega. Se a troca for " +
+                    "aceita, o colega trabalha no dia que você selecionou e " +
+                    "você trabalha no dia que ele selecionou.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(8.dp))
 
-            Text("Minhas folgas agendadas", style = MaterialTheme.typography.titleSmall)
+            Text("Meus dias cadastrados", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             FolgaChips(
                 folgas = my.filter { it.status == FolgaStatus.SCHEDULED },
@@ -95,7 +114,7 @@ fun SwapsScreen(
             )
 
             Spacer(Modifier.height(12.dp))
-            Text("Folgas de colegas", style = MaterialTheme.typography.titleSmall)
+            Text("Dias cadastrados pelos colegas", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             FolgaChips(
                 folgas = colleagues.filter { it.status == FolgaStatus.SCHEDULED },
@@ -116,16 +135,22 @@ fun SwapsScreen(
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(8.dp))
+            val atLimit = quota?.atOrAboveQuota == true
             Button(
                 onClick = viewModel::requestSwap,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !state.isLoading,
-            ) { Text("Solicitar troca") }
+                enabled = !state.isLoading && !atLimit,
+            ) {
+                Text(
+                    if (atLimit) "Limite de trocas atingido no período"
+                    else "Solicitar troca",
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (incoming.isEmpty()) Text("Nenhuma solicitação recebida.")
+            if (incoming.isEmpty()) Text("Nenhuma solicitação recebida.", style = MaterialTheme.typography.bodySmall)
             incoming.forEach { swap ->
                 SwapRow(
                     swap = swap,
@@ -144,7 +169,7 @@ fun SwapsScreen(
             Spacer(Modifier.height(16.dp))
             Text("Enviadas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (outgoing.isEmpty()) Text("Nenhuma solicitação enviada.")
+            if (outgoing.isEmpty()) Text("Nenhuma solicitação enviada.", style = MaterialTheme.typography.bodySmall)
             outgoing.forEach { swap ->
                 SwapRow(
                     swap = swap,
@@ -160,33 +185,10 @@ fun SwapsScreen(
         }
     }
 
-    // Aviso (não-bloqueante) quando o usuário já está no limite de trocas
-    // aceitas iniciadas no período (dia 16→15). Confirmar segue com a
-    // solicitação normalmente; cancelar mantém o botão no estado anterior.
-    state.quotaWarning?.let { warn ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissQuotaWarning,
-            title = { Text("Quota de trocas atingida") },
-            text = {
-                Text(
-                    "Você já tem ${warn.used} de ${warn.quota} trocas aceitas no período " +
-                        "(dia 16 → dia 15) para o turno ${shiftLabel(warn.shift)}. " +
-                        "Se essa solicitação for aceita, você vai passar do limite. " +
-                        "Deseja continuar mesmo assim?",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmOverQuota) { Text("Continuar") }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissQuotaWarning) { Text("Cancelar") }
-            },
-        )
-    }
 }
 
-private fun quotaChipLabel(shift: Shift, used: Int, quota: Int): String =
-    "Trocas no período: $used/$quota · ${shiftLabel(shift)}"
+private fun quotaChipLabel(shift: Shift, remaining: Int, quota: Int): String =
+    "Trocas restantes: $remaining de $quota · ${shiftLabel(shift)}"
 
 private fun shiftLabel(shift: Shift): String = when (shift) {
     Shift.MANHA -> "Manhã"
@@ -194,7 +196,7 @@ private fun shiftLabel(shift: Shift): String = when (shift) {
     Shift.NOITE -> "Noite"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun FolgaChips(
     folgas: List<Folga>,
@@ -203,12 +205,17 @@ private fun FolgaChips(
     users: List<User>,
 ) {
     if (folgas.isEmpty()) {
-        Text("Nenhuma folga disponível.", style = MaterialTheme.typography.bodySmall)
+        Text("Nenhum dia disponível.", style = MaterialTheme.typography.bodySmall)
         return
     }
-    Row(
+    // FlowRow quebra as chips pra linhas adicionais quando não cabem na
+    // largura da tela — evita corte horizontal quando o usuário tem vários
+    // dias cadastrados. Um `Row` simples não quebra e os chips em excesso
+    // ficam invisíveis ou espremidos.
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         folgas.forEach { folga ->
             val owner = users.firstOrNull { it.id == folga.userId }?.name ?: "—"
@@ -233,7 +240,10 @@ private fun SwapRow(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text("$requester ↔ $target", style = MaterialTheme.typography.titleSmall)
-            Text("Status: ${swap.status.name}", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Status: ${swapStatusLabel(swap.status)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (!swap.message.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(swap.message, style = MaterialTheme.typography.bodySmall)
@@ -242,4 +252,11 @@ private fun SwapRow(
             Row(verticalAlignment = Alignment.CenterVertically) { actions() }
         }
     }
+}
+
+private fun swapStatusLabel(status: SwapStatus): String = when (status) {
+    SwapStatus.PENDING -> "Aguardando resposta"
+    SwapStatus.ACCEPTED -> "Confirmada"
+    SwapStatus.REJECTED -> "Recusada"
+    SwapStatus.CANCELLED -> "Cancelada"
 }
