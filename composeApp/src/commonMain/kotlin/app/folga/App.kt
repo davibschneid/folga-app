@@ -8,6 +8,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import app.folga.domain.AuthRepository
 import app.folga.domain.User
+import app.folga.domain.UserRole
+import app.folga.ui.admin.AdminScreen
 import app.folga.ui.completarcadastro.CompletarCadastroScreen
 import app.folga.ui.folgas.FolgasScreen
 import app.folga.ui.login.LoginScreen
@@ -23,6 +25,7 @@ sealed interface Screen {
     data object CompletarCadastro : Screen
     data object Folgas : Screen
     data object Swaps : Screen
+    data object Admin : Screen
 }
 
 /**
@@ -82,10 +85,22 @@ private fun AppContent() {
 
         Screen.Folgas -> FolgasScreen(
             onOpenSwaps = { screen = Screen.Swaps },
+            onOpenAdmin = { screen = Screen.Admin }.takeIf { user?.role == UserRole.ADMIN },
         )
 
         Screen.Swaps -> SwapsScreen(
             onBack = { screen = Screen.Folgas },
         )
+
+        Screen.Admin -> {
+            // Acesso direto via estado — mas se o usuário perdeu role de
+            // admin (ex.: outro admin o despromoveu enquanto estava na
+            // tela), manda pra FolgasScreen.
+            if (user?.role != UserRole.ADMIN) {
+                screen = Screen.Folgas
+            } else {
+                AdminScreen(onBack = { screen = Screen.Folgas })
+            }
+        }
     }
 }
