@@ -115,6 +115,15 @@ fun SwapsScreen(
             Spacer(Modifier.height(12.dp))
             Text("Escolha um colega", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
+            Text(
+                // Regra de negócio: só aparecem colegas do mesmo grupo de
+                // turno do usuário (diurno MANHA/TARDE ou noturno NOITE).
+                text = "A lista mostra apenas colegas do mesmo grupo de " +
+                    "turno (diurno ou noturno).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
             UserChips(
                 users = colleagues,
                 selectedId = state.selectedTargetUserId,

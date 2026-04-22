@@ -77,12 +77,16 @@ class SwapsViewModel(
 
     /**
      * Lista de colegas disponíveis pra assumir um dia — todos os usuários
-     * do sistema exceto o próprio usuário logado. No modelo unidirecional
-     * novo, o picker da tela de trocas seleciona um colega diretamente
-     * (não mais um dia específico dele).
+     * do sistema exceto o próprio usuário logado e filtrados por
+     * compatibilidade de turno (diurno MANHA/TARDE só troca com diurno,
+     * NOITE só troca com NOITE). A restrição é uma regra de negócio: a
+     * rotina do noturno é incompatível com a do diurno. A mesma validação
+     * é reforçada no `requestSwap` (defesa em profundidade caso a UI
+     * passe um id inválido) e nas Firestore rules (backend).
      */
     val colleagues: StateFlow<List<User>> = combine(users, currentUser) { all, me ->
-        if (me == null) emptyList() else all.filter { it.id != me.id }
+        if (me == null) emptyList()
+        else all.filter { it.id != me.id && me.shift.isCompatibleWith(it.shift) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -131,6 +135,20 @@ class SwapsViewModel(
         val targetUserId = _state.value.selectedTargetUserId
         if (myId == null || targetUserId == null) {
             _state.update { it.copy(error = "Selecione um dia seu e um colega") }
+            return
+        }
+        // Defesa em profundidade: a UI já filtra `colleagues` por
+        // compatibilidade de turno, mas se por qualquer motivo um id
+        // incompatível for parar no state (race com refresh da lista,
+        // por exemplo) rejeitamos antes de chamar o backend.
+        val target = users.value.firstOrNull { it.id == targetUserId }
+        if (target != null && !me.shift.isCompatibleWith(target.shift)) {
+            _state.update {
+                it.copy(
+                    error = "Só é possível trocar com colegas do mesmo " +
+                        "grupo de turno (diurno ou noturno).",
+                )
+            }
             return
         }
         val quota = quotaStatus.value
