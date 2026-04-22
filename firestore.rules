@@ -56,6 +56,17 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // Regra de compatibilidade de turno para trocas: os turnos MANHA e
+    // TARDE formam o grupo diurno (podem trocar entre si); NOITE só
+    // troca com NOITE. Espelho de `Shift.isCompatibleWith` em
+    // composeApp/src/commonMain/kotlin/app/folga/domain/Models.kt.
+    function shiftGroup(shift) {
+      return shift == 'NOITE' ? 'NOTURNO' : 'DIURNO';
+    }
+    function shiftsCompatible(a, b) {
+      return shiftGroup(a) == shiftGroup(b);
+    }
+
     // ---- users ------------------------------------------------------------
 
     match /users/{uid} {
@@ -178,12 +189,21 @@ service cloud.firestore {
       );
 
       // Create: requester é o próprio usuário, status inicial PENDING,
-      // requester != target, sem `respondedAt`.
+      // requester != target, sem `respondedAt`. Além disso o turno do
+      // target tem que ser compatível com o do requester — diurno
+      // (MANHA/TARDE) só troca com diurno, NOITE só com NOITE. A lista
+      // `diurnalShifts()` agrupa MANHA e TARDE; se o shift do requester
+      // está nessa lista, o do target também precisa estar. Se não está
+      // (NOITE), a igualdade exata (`== 'NOITE'`) resolve.
       allow create: if isSelf(request.resource.data.requesterId)
         && request.resource.data.status == 'PENDING'
         && request.resource.data.targetId != request.resource.data.requesterId
         && !('respondedAt' in request.resource.data.keys()
-             && request.resource.data.respondedAt != null);
+             && request.resource.data.respondedAt != null)
+        && shiftsCompatible(
+          get(/databases/$(database)/documents/users/$(request.resource.data.requesterId)).data.shift,
+          get(/databases/$(database)/documents/users/$(request.resource.data.targetId)).data.shift
+        );
 
       // Update: transições a partir de PENDING:
       //  - target aceita  (ACCEPTED) ou rejeita (REJECTED)

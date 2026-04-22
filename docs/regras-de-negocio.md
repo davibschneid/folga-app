@@ -128,7 +128,30 @@ pra `createdAt` como fallback.
 - A quota agora **bloqueia** a solicitação (antes era aviso
   não-bloqueante).
 
-### 3.3 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
+### 3.3 Restrição por grupo de turno ✅ (PR #23)
+
+> **Regra:** só é possível trocar com colegas do mesmo **grupo de turno**.
+> `MANHA` e `TARDE` formam o grupo **diurno** (podem trocar entre si);
+> `NOITE` forma o grupo **noturno** (só troca com `NOITE`).
+
+**Motivo:** a rotina do noturno é incompatível com a do diurno. Permitir
+que um diurno assuma um plantão noturno (ou vice-versa) via troca quebra
+a escala real de trabalho.
+
+**Onde é aplicada:**
+- **UI (SwapsScreen):** o picker **"Escolha um colega"** só mostra
+  colegas do mesmo grupo de turno do usuário logado. Aparece uma linha
+  explicativa acima da lista. Se não houver nenhum colega compatível, a
+  mensagem padrão "Nenhum colega disponível" é exibida.
+- **ViewModel (SwapsViewModel):** `colleagues` é filtrado com
+  `me.shift.isCompatibleWith(it.shift)`; `requestSwap()` reforça a
+  validação antes de chamar o backend.
+- **Backend (firestore.rules):** a regra de `allow create` em
+  `/swaps/{id}` exige `shiftsCompatible(requesterShift, targetShift)`
+  antes de aceitar o doc. Isso bloqueia mesmo um cliente malicioso que
+  contorne a UI.
+
+### 3.4 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
 
 > **Regra pretendida:** usuários do turno `NOITE` não podem trabalhar mais
 > de 2 noites seguidas.

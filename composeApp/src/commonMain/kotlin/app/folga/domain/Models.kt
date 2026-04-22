@@ -61,10 +61,37 @@ enum class Shift {
     TARDE,
     NOITE;
 
+    /**
+     * Grupo de turno para fins de troca. Regra do cliente: só podem
+     * trocar entre si colegas do mesmo grupo — os diurnos (MANHA/TARDE)
+     * são intercambiáveis, os noturnos (NOITE) só trocam com noturnos.
+     */
+    val group: ShiftGroup
+        get() = when (this) {
+            MANHA, TARDE -> ShiftGroup.DIURNO
+            NOITE -> ShiftGroup.NOTURNO
+        }
+
+    /**
+     * Indica se duas pessoas com esses turnos podem trocar entre si.
+     * Simétrica — `a.isCompatibleWith(b) == b.isCompatibleWith(a)`.
+     */
+    fun isCompatibleWith(other: Shift): Boolean = this.group == other.group
+
     companion object {
         fun fromString(value: String?): Shift =
             entries.firstOrNull { it.name == value } ?: MANHA
     }
+}
+
+/**
+ * Agrupamento de turnos para a regra de compatibilidade de troca:
+ * manhã e tarde compartilham o grupo DIURNO (podem trocar entre si),
+ * noite fica no grupo NOTURNO (só troca com noite).
+ */
+enum class ShiftGroup {
+    DIURNO,
+    NOTURNO,
 }
 
 enum class FolgaStatus {
