@@ -104,12 +104,16 @@ virou `ACCEPTED`). Para trocas antigas que não tenham esse timestamp, cai
 pra `createdAt` como fallback.
 
 **Comportamento na UI:**
-- Tela **Trocas** exibe chip com `Trocas no período: N/Quota · Turno`.
-- Ao clicar **Solicitar troca** com quota já atingida, aparece um
-  `AlertDialog` de aviso. O usuário pode **Continuar** (segue com a
-  solicitação mesmo assim) ou **Cancelar** (volta sem enviar).
-- A quota nunca bloqueia a solicitação — é só aviso preventivo, para que o
-  usuário saiba que aquela troca vai passar do limite se o colega aceitar.
+- Tela **Trocar dia de trabalho** exibe chip com `Trocas restantes: X de Y
+  · Turno`. A chip fica com cor de erro (vermelha) quando o limite é
+  atingido.
+- Quando o usuário atinge o limite, o botão **Solicitar troca** fica
+  desabilitado e mostra o texto "Limite de trocas atingido no período".
+- `SwapsViewModel.requestSwap()` também rejeita a submissão quando a quota
+  está batida (defesa-em-profundidade — cobre race condition onde o
+  estado da UI está desatualizado).
+- A quota agora **bloqueia** a solicitação (antes era aviso
+  não-bloqueante).
 
 ### 3.3 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
 
@@ -266,10 +270,13 @@ sincroniza quando voltar.
 
 ## 6. Suporte ao usuário — perguntas frequentes
 
-### "Por que meu botão de Solicitar troca está mostrando um aviso?"
-Você já atingiu a quota de trocas aceitas no período corrente (16→15).
-O aviso é preventivo — se a troca for aceita, você passa do limite. Você
-pode confirmar e seguir, ou cancelar.
+### "Por que meu botão de Solicitar troca está desabilitado?"
+Você atingiu a quota de trocas aceitas no período corrente (dia 16 ao dia
+15). O botão volta a ficar disponível quando um dos seguintes ocorre:
+- Começa um novo período (dia 16).
+- Uma das suas trocas aceitas no período é cancelada/revertida (hoje o
+  app não suporta cancelar troca já aceita — então, na prática, só com a
+  virada do período).
 
 ### "Meu dia cadastrado sumiu depois que o colega aceitou a troca — é bug?"
 Não — isso é o comportamento esperado. Quando você pede uma troca, você
@@ -294,5 +301,6 @@ a regra de plantões seguidos do noturno.
 
 ---
 
-Última atualização: PR de rename para "dia de trabalho" + bloco "Trocas
-agendadas" na tela inicial.
+Última atualização: rename para "dia de trabalho", bloco "Trocas
+agendadas" na tela inicial, quota passa a ser bloqueante + exibida como
+"trocas restantes".
