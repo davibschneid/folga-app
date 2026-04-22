@@ -156,8 +156,21 @@ class FirebaseAuthRepository(
         // Gate DEPOIS do signInWithCredential (precisa do email confirmado
         // pelo Google) mas antes de gravar perfil. Se bloquear, desloga
         // do Firebase pra evitar conta Firebase ativa sem autorização.
+        // Importante: o `runCatching` externo pega exceção do Firestore
+        // e retorna Failure, MAS pula o signOut — então precisamos de um
+        // runCatching local pra garantir que a sessão do Firebase Auth é
+        // sempre derrubada quando o gate falha ou lança. Sem isso, um erro
+        // de rede aqui deixaria o usuário logado em `authStateChanged`, e
+        // no próximo reabrir do app ele entraria sem passar pelo gate.
         val resolvedEmail = fbUser.email ?: email
-        checkEmailAllowed(resolvedEmail)?.let { failure ->
+        val gateResult = runCatching { checkEmailAllowed(resolvedEmail) }
+            .getOrElse { ex ->
+                runCatching { auth.signOut() }
+                return@runCatching AuthResult.Failure(
+                    ex.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+        gateResult?.let { failure ->
             runCatching { auth.signOut() }
             return@runCatching failure
         }
