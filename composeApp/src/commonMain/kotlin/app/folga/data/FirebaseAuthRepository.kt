@@ -73,7 +73,17 @@ class FirebaseAuthRepository(
     override suspend fun signInWithEmail(email: String, password: String): AuthResult = runCatching {
         // Gate antes de qualquer side-effect: se o admin revogou o e-mail,
         // mesmo tendo cadastro no Firebase Auth o login é bloqueado.
-        checkEmailAllowed(email)?.let { return@runCatching it }
+        // `checkEmailAllowed` pode lançar no Firestore (rede/permissão).
+        // Precisamos de um runCatching local aqui pra que essa exceção
+        // não caia no `.getOrElse` externo e seja mapeada como "Email ou
+        // senha inválidos" — feedback enganoso pro usuário.
+        runCatching { checkEmailAllowed(email) }
+            .getOrElse { ex ->
+                return@runCatching AuthResult.Failure(
+                    ex.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+            ?.let { return@runCatching it }
 
         val result = auth.signInWithEmailAndPassword(email, password)
         val fbUser = result.user ?: return@runCatching AuthResult.Failure("Falha ao autenticar")
