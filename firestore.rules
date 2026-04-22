@@ -1,0 +1,225 @@
+rules_version = '2';
+
+// Firestore Security Rules do Easy Folgas.
+//
+// Objetivos:
+//  - Impedir escalation de privilégio (só admin muda `role`, exceto bootstrap
+//    de admin pelo próprio usuário quando o e-mail está na lista hardcoded).
+//  - Impedir que um usuário crie/edite perfil alheio.
+//  - Impedir que não-admin mexa na whitelist de e-mails (`allowed_emails`).
+//  - Impedir deleção direta de docs (o app usa status `CANCELLED` / `SWAPPED`
+//    em vez de delete).
+//  - Validar transições de status de troca (PENDING → ACCEPTED/REJECTED pelo
+//    target, PENDING → CANCELLED pelo requester) e de folga (SCHEDULED →
+//    CANCELLED pelo dono, SCHEDULED → SWAPPED durante aceite de troca).
+//
+// Limitações conhecidas (documentadas em `docs/firestore-rules.md`):
+//  - A transição de folga SCHEDULED → SWAPPED não consegue checar, dentro da
+//    própria regra, que existe uma troca PENDING referenciando a folga e que
+//    o chamador é target dessa troca — Firestore rules não suportam queries.
+//    Mitigação: `userId` novo tem que apontar pra um doc de usuário existente
+//    e só `status`/`userId` podem mudar.
+//
+// IMPORTANTE: `bootstrapAdmins()` precisa ficar sincronizado com
+// `AdminBootstrap.ADMIN_EMAILS` em
+// `composeApp/src/commonMain/kotlin/app/folga/domain/AdminBootstrap.kt`.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ----------------------------------------------------------
+
+    function bootstrapAdmins() {
+      // Espelho da lista hardcoded em AdminBootstrap.kt. Tudo em lowercase
+      // para bater com `request.auth.token.email.lower()`.
+      return ['davi.schneid@gmail.com', 'janaina.flor@gmail.com'];
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    function isBootstrapAdminEmail(email) {
+      return email != null && email.lower() in bootstrapAdmins();
+    }
+
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ---- users ------------------------------------------------------------
+
+    match /users/{uid} {
+      // Leitura liberada para qualquer autenticado: swap picker precisa
+      // mostrar nome/turno dos colegas e a tela de Admin precisa listar
+      // todos. Campos do perfil não são segredo num app interno.
+      allow get, list: if isSignedIn();
+
+      // Criação só pelo próprio usuário (uid == auth.uid). Email do doc
+      // tem que casar com o email do token. Role tem que ser USER — ou
+      // ADMIN, mas só se o email está na lista bootstrap.
+      allow create: if isSelf(uid)
+        && request.resource.data.id == uid
+        && request.resource.data.email == request.auth.token.email
+        && (
+          request.resource.data.role == 'USER'
+          || (
+            request.resource.data.role == 'ADMIN'
+            && isBootstrapAdminEmail(request.auth.token.email)
+          )
+        );
+
+      // Update:
+      //  - admin pode alterar qualquer coisa;
+      //  - próprio usuário pode alterar campos editáveis (name, registrationNumber,
+      //    team, shift) mas NÃO id/email/createdAt e só troca o `role` se
+      //    for bootstrap admin se autopromovendo de USER → ADMIN (caminho
+      //    do `repairBootstrapRole` em FirebaseAuthRepository).
+      allow update: if isAdmin() || (
+        isSelf(uid)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          request.resource.data.role == resource.data.role
+          || (
+            resource.data.role == 'USER'
+            && request.resource.data.role == 'ADMIN'
+            && isBootstrapAdminEmail(request.auth.token.email)
+          )
+        )
+      );
+
+      // Delete: ninguém pela UI. Se precisar remover de verdade, só via
+      // console do Firebase.
+      allow delete: if false;
+    }
+
+    // ---- allowed_emails ---------------------------------------------------
+
+    match /allowed_emails/{emailId} {
+      // GET individual liberado para qualquer autenticado — o gate de
+      // login faz `collection.document(email).get()` pra checar se o
+      // próprio e-mail está liberado. LIST é restrito a admin (tela de
+      // Administração).
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+
+      // Apenas admin gerencia a whitelist.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---- folgas -----------------------------------------------------------
+
+    match /folgas/{folgaId} {
+      // Qualquer autenticado lê — a tela inicial precisa listar todas as
+      // folgas envolvidas em trocas e o swap picker precisa das folgas
+      // dos colegas.
+      allow get, list: if isSignedIn();
+
+      // Criar: só o próprio usuário como dono, status SCHEDULED.
+      allow create: if isSelf(request.resource.data.userId)
+        && request.resource.data.status == 'SCHEDULED';
+
+      // Update tem três caminhos válidos:
+      //  1. Dono cancelando a própria folga (SCHEDULED → CANCELLED), sem
+      //     mexer em mais nada.
+      //  2. Durante `SwapRepository.accept()`: flip de ownership + status
+      //     SCHEDULED → SWAPPED em AMBAS as folgas da troca. Aqui a regra
+      //     não consegue garantir via query que existe de fato uma troca
+      //     PENDING entre as duas — Firestore rules não permitem query.
+      //     Mitigamos exigindo: só `userId` e `status` mudam, status vai
+      //     pra SWAPPED e o novo `userId` aponta pra um user doc existente.
+      //     O guard atômico real está no transaction do cliente (ver
+      //     `FirestoreSwapRepository.accept`).
+      //  3. Admin pode alterar qualquer coisa.
+      allow update: if isAdmin()
+        || (
+          // caminho 1 — dono cancela
+          isSelf(resource.data.userId)
+          && resource.data.status == 'SCHEDULED'
+          && request.resource.data.status == 'CANCELLED'
+          && request.resource.data.userId == resource.data.userId
+          && onlyChanged(['status'])
+        )
+        || (
+          // caminho 2 — flip de swap accept
+          isSignedIn()
+          && resource.data.status == 'SCHEDULED'
+          && request.resource.data.status == 'SWAPPED'
+          && exists(/databases/$(database)/documents/users/$(request.resource.data.userId))
+          && onlyChanged(['status', 'userId'])
+        );
+
+      // Delete: ninguém pela UI.
+      allow delete: if false;
+    }
+
+    // ---- swaps ------------------------------------------------------------
+
+    match /swaps/{swapId} {
+      // Só participantes (requester ou target) e admin acessam o swap.
+      // As queries do app filtram por `targetId == uid` ou `requesterId == uid`,
+      // então a regra `allow read` por doc bate — Firestore rejeita
+      // qualquer outra query que retornaria docs fora desse filtro.
+      allow read: if isSignedIn() && (
+        resource.data.requesterId == request.auth.uid
+        || resource.data.targetId == request.auth.uid
+        || isAdmin()
+      );
+
+      // Create: requester é o próprio usuário, status inicial PENDING,
+      // requester != target, sem `respondedAt`.
+      allow create: if isSelf(request.resource.data.requesterId)
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.targetId != request.resource.data.requesterId
+        && !('respondedAt' in request.resource.data.keys()
+             && request.resource.data.respondedAt != null);
+
+      // Update: transições a partir de PENDING:
+      //  - target aceita  (ACCEPTED) ou rejeita (REJECTED)
+      //  - requester cancela (CANCELLED)
+      //  - admin pode forçar qualquer transição (manutenção)
+      // Campos da chave (requesterId/targetId/fromFolgaId/toFolgaId) são
+      // imutáveis.
+      allow update: if (
+        resource.data.status == 'PENDING'
+        && request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.targetId == resource.data.targetId
+        && request.resource.data.fromFolgaId == resource.data.fromFolgaId
+        && request.resource.data.toFolgaId == resource.data.toFolgaId
+        && (
+          isAdmin()
+          || (
+            isSelf(resource.data.targetId)
+            && (request.resource.data.status == 'ACCEPTED'
+                || request.resource.data.status == 'REJECTED')
+          )
+          || (
+            isSelf(resource.data.requesterId)
+            && request.resource.data.status == 'CANCELLED'
+          )
+        )
+      );
+
+      // Delete: ninguém.
+      allow delete: if false;
+    }
+
+    // ---- default deny -----------------------------------------------------
+
+    // Qualquer outro caminho fora das matches acima é negado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
