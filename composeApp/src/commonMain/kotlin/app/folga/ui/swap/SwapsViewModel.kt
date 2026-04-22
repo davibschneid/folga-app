@@ -43,7 +43,13 @@ data class SwapsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedMyFolgaId: String? = null,
-    val selectedTargetFolgaId: String? = null,
+    /**
+     * Id do colega (User.id) que o usuário selecionou pra assumir o dia.
+     * No modelo unidirecional novo o usuário escolhe *uma pessoa* em vez
+     * de um dia específico do colega — o colega só precisa aceitar e
+     * passa a assumir o dia do requester.
+     */
+    val selectedTargetUserId: String? = null,
     val message: String = "",
 )
 
@@ -66,17 +72,18 @@ class SwapsViewModel(
         .flatMapLatest { u -> if (u == null) flowOf(emptyList()) else folgaRepository.observeByUser(u.id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val colleagueFolgas: StateFlow<List<Folga>> = currentUser
-        .flatMapLatest { u ->
-            if (u == null) flowOf(emptyList())
-            else folgaRepository.observeAll()
-        }
-        .combine(currentUser) { all, me -> all.filter { it.userId != me?.id } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     val users: StateFlow<List<User>> = userRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Lista de colegas disponíveis pra assumir um dia — todos os usuários
+     * do sistema exceto o próprio usuário logado. No modelo unidirecional
+     * novo, o picker da tela de trocas seleciona um colega diretamente
+     * (não mais um dia específico dele).
+     */
+    val colleagues: StateFlow<List<User>> = combine(users, currentUser) { all, me ->
+        if (me == null) emptyList() else all.filter { it.id != me.id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val incoming: StateFlow<List<SwapRequest>> = currentUser
@@ -107,7 +114,8 @@ class SwapsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun selectMy(id: String) = _state.update { it.copy(selectedMyFolgaId = id, error = null) }
-    fun selectTarget(id: String) = _state.update { it.copy(selectedTargetFolgaId = id, error = null) }
+    fun selectTargetUser(userId: String) =
+        _state.update { it.copy(selectedTargetUserId = userId, error = null) }
     fun onMessageChange(v: String) = _state.update { it.copy(message = v, error = null) }
 
     /**
@@ -120,9 +128,9 @@ class SwapsViewModel(
     fun requestSwap() {
         val me = currentUser.value ?: return
         val myId = _state.value.selectedMyFolgaId
-        val targetId = _state.value.selectedTargetFolgaId
-        if (myId == null || targetId == null) {
-            _state.update { it.copy(error = "Selecione seu dia e o dia do colega") }
+        val targetUserId = _state.value.selectedTargetUserId
+        if (myId == null || targetUserId == null) {
+            _state.update { it.copy(error = "Selecione um dia seu e um colega") }
             return
         }
         val quota = quotaStatus.value
@@ -135,23 +143,17 @@ class SwapsViewModel(
             }
             return
         }
-        submitSwap()
+        submitSwap(me.id, myId, targetUserId)
     }
 
-    private fun submitSwap() {
-        val me = currentUser.value ?: return
-        val myId = _state.value.selectedMyFolgaId ?: return
-        val targetId = _state.value.selectedTargetFolgaId ?: return
+    private fun submitSwap(requesterId: String, myFolgaId: String, targetUserId: String) {
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             runCatching {
-                val targetFolga = folgaRepository.findById(targetId)
-                    ?: error("Folga do colega não encontrada")
                 swapRepository.request(
-                    fromFolgaId = myId,
-                    toFolgaId = targetId,
-                    requesterId = me.id,
-                    targetId = targetFolga.userId,
+                    fromFolgaId = myFolgaId,
+                    requesterId = requesterId,
+                    targetId = targetUserId,
                     message = _state.value.message.takeIf { it.isNotBlank() },
                 )
             }.onSuccess {
@@ -159,7 +161,7 @@ class SwapsViewModel(
                     it.copy(
                         isLoading = false,
                         selectedMyFolgaId = null,
-                        selectedTargetFolgaId = null,
+                        selectedTargetUserId = null,
                         message = "",
                     )
                 }

@@ -99,11 +99,21 @@ enum class SwapStatus {
     }
 }
 
+/**
+ * Pedido de troca unidirecional. O requester cadastrou um dia de trabalho
+ * ([fromFolgaId]) e está pedindo que [targetId] assuma esse dia. Se o
+ * target aceitar, o dia passa pra ele (ownership do [Folga] muda + status
+ * vira [FolgaStatus.SWAPPED]); o requester fica sem esse dia de trabalho.
+ *
+ * Modelo antigo (pré-PR de fluxo unidirecional) tinha também um campo
+ * `toFolgaId` com o dia do colega pra trocar em contrapartida. Esse campo
+ * foi removido do domínio — no Firestore ainda fica presente em docs
+ * antigos por compatibilidade, mas é ignorado no toDomain().
+ */
 @Serializable
 data class SwapRequest(
     val id: String,
     val fromFolgaId: String,
-    val toFolgaId: String,
     val requesterId: String,
     val targetId: String,
     val status: SwapStatus,

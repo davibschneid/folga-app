@@ -58,6 +58,10 @@ internal data class FolgaDto(
 internal data class SwapDto(
     val id: String = "",
     val fromFolgaId: String = "",
+    // `toFolgaId` foi mantido no DTO pra continuar lendo docs antigos
+    // (modelo bidirecional pré-PR do fluxo unidirecional). Default vazio
+    // para novos docs — a regra de Firestore não valida mais imutabilidade
+    // desse campo. Ignorado no toDomain().
     val toFolgaId: String = "",
     val requesterId: String = "",
     val targetId: String = "",
@@ -122,7 +126,10 @@ internal fun FolgaDto.toDomain(): Folga = Folga(
 internal fun SwapRequest.toDto(): SwapDto = SwapDto(
     id = id,
     fromFolgaId = fromFolgaId,
-    toFolgaId = toFolgaId,
+    // `toFolgaId` saiu do domínio no modelo unidirecional. Escrevemos ""
+    // pra manter a mesma shape do doc e pra conviver com docs antigos
+    // no mesmo collection.
+    toFolgaId = "",
     requesterId = requesterId,
     targetId = targetId,
     status = status.name,
@@ -134,7 +141,8 @@ internal fun SwapRequest.toDto(): SwapDto = SwapDto(
 internal fun SwapDto.toDomain(): SwapRequest = SwapRequest(
     id = id,
     fromFolgaId = fromFolgaId,
-    toFolgaId = toFolgaId,
+    // `toFolgaId` existe no DTO só pra não quebrar a leitura de docs
+    // antigos; é ignorado aqui no modelo unidirecional.
     requesterId = requesterId,
     targetId = targetId,
     status = SwapStatus.fromString(status),
