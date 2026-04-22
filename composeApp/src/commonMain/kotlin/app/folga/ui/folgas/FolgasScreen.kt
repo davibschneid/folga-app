@@ -40,8 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.folga.domain.Folga
-import app.folga.domain.FolgaStatus
+import app.folga.domain.SwapStatus
 import app.folga.ui.common.formatBrazilian
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -62,12 +61,12 @@ fun FolgasScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
-    val folgas by viewModel.folgas.collectAsStateWithLifecycle()
+    val scheduledSwaps by viewModel.scheduledSwaps.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Minhas Folgas") },
+                title = { Text("Meus dias de trabalho") },
                 actions = {
                     if (onOpenAdmin != null) {
                         OutlinedButton(
@@ -94,7 +93,7 @@ fun FolgasScreen(
             Spacer(Modifier.height(16.dp))
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Reservar nova folga", style = MaterialTheme.typography.titleSmall)
+                    Text("Cadastrar dia de trabalho", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
                     FolgaDatePickerField(
                         selected = state.newFolgaDate,
@@ -121,19 +120,22 @@ fun FolgasScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isLoading,
                     ) {
-                        if (state.isLoading) CircularProgressIndicator() else Text("Reservar")
+                        if (state.isLoading) CircularProgressIndicator() else Text("Cadastrar")
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text("Folgas", style = MaterialTheme.typography.titleMedium)
+            Text("Trocas agendadas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (folgas.isEmpty()) {
-                Text("Nenhuma folga reservada ainda.", style = MaterialTheme.typography.bodyMedium)
+            if (scheduledSwaps.isEmpty()) {
+                Text(
+                    "Nenhuma troca agendada.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(folgas, key = { it.id }) { folga ->
-                        FolgaRow(folga = folga, onCancel = { viewModel.cancel(folga.id) })
+                    items(scheduledSwaps, key = { it.id }) { swap ->
+                        ScheduledSwapRow(swap = swap)
                     }
                 }
             }
@@ -141,26 +143,48 @@ fun FolgasScreen(
     }
 }
 
+/**
+ * Linha exibindo uma troca agendada: "Fulano ↔ Ciclano" em negrito, as duas
+ * datas (quem trabalha pra quem em cada dia) e o status atual da troca.
+ */
 @Composable
-private fun FolgaRow(folga: Folga, onCancel: () -> Unit) {
+private fun ScheduledSwapRow(swap: ScheduledSwap) {
     Card(Modifier.fillMaxWidth()) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(folga.date.formatBrazilian(), style = MaterialTheme.typography.titleMedium)
-                Text(folga.status.name, style = MaterialTheme.typography.bodySmall)
-                if (!folga.note.isNullOrBlank()) {
-                    Text(folga.note, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            if (folga.status == FolgaStatus.SCHEDULED) {
-                OutlinedButton(onClick = onCancel) { Text("Cancelar") }
-            }
+            Text(
+                text = "${swap.requesterName} ↔ ${swap.targetName}",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(4.dp))
+            val reqDate = swap.requesterDate?.formatBrazilian() ?: "—"
+            val tgtDate = swap.targetDate?.formatBrazilian() ?: "—"
+            Text(
+                // "Fulano trabalha no dia DD/MM/AAAA para Ciclano" e vice-versa.
+                text = "${swap.targetName} trabalha em $reqDate " +
+                    "• ${swap.requesterName} trabalha em $tgtDate",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = statusLabel(swap.status),
+                style = MaterialTheme.typography.bodySmall,
+                color = when (swap.status) {
+                    SwapStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
+                    SwapStatus.PENDING -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
         }
     }
+}
+
+private fun statusLabel(status: SwapStatus): String = when (status) {
+    SwapStatus.PENDING -> "Aguardando resposta"
+    SwapStatus.ACCEPTED -> "Confirmada"
+    SwapStatus.REJECTED -> "Recusada"
+    SwapStatus.CANCELLED -> "Cancelada"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
