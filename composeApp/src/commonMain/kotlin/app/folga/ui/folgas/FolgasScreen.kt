@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.folga.domain.Folga
+import app.folga.domain.FolgaStatus
 import app.folga.domain.SwapStatus
 import app.folga.ui.common.formatBrazilian
 import kotlinx.datetime.Instant
@@ -63,6 +65,11 @@ fun FolgasScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
     val scheduledSwaps by viewModel.scheduledSwaps.collectAsStateWithLifecycle()
+    val folgas by viewModel.folgas.collectAsStateWithLifecycle()
+    // Só mostra os dias que o usuário ainda pode cancelar. CANCELLED e
+    // SWAPPED não fazem sentido listar aqui (já saíram do calendário de
+    // compromissos do usuário) e também não teriam botão de ação.
+    val myScheduled = folgas.filter { it.status == FolgaStatus.SCHEDULED }
 
     Scaffold(
         topBar = {
@@ -91,7 +98,13 @@ fun FolgasScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            // `verticalScroll` envolve tudo pra permitir duas listas
+            // (trocas agendadas + dias cadastrados) sem conflito entre
+            // dois LazyColumns aninhados — que quebraria com
+            // "infinite height constraints". Folga list tende a ser
+            // pequena (< dezenas), virtualização não é crítica.
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             Text(
                 text = me?.let { "Olá, ${it.name} — ${it.team}" } ?: "Sem usuário",
@@ -148,9 +161,25 @@ fun FolgasScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(scheduledSwaps, key = { it.id }) { swap ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    scheduledSwaps.forEach { swap ->
                         ScheduledSwapRow(swap = swap)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Text("Meus dias cadastrados", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            if (myScheduled.isEmpty()) {
+                Text(
+                    "Nenhum dia cadastrado.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    myScheduled.forEach { folga ->
+                        MyFolgaRow(folga = folga, onCancel = { viewModel.cancel(folga.id) })
                     }
                 }
             }
@@ -191,6 +220,38 @@ private fun ScheduledSwapRow(swap: ScheduledSwap) {
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
+        }
+    }
+}
+
+/**
+ * Linha exibindo um dia cadastrado pelo próprio usuário, com botão
+ * Cancelar. Só aparece para `FolgaStatus.SCHEDULED` — a filtragem é
+ * feita pela tela antes de renderizar.
+ */
+@Composable
+private fun MyFolgaRow(folga: Folga, onCancel: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = folga.date.formatBrazilian(),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (!folga.note.isNullOrBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = folga.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            OutlinedButton(onClick = onCancel) { Text("Cancelar") }
         }
     }
 }
