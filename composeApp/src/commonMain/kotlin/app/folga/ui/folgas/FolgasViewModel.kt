@@ -26,6 +26,7 @@ import kotlinx.datetime.LocalDate
 data class FolgasUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
+    val successMessage: String? = null,
     val newFolgaDate: String = "",
     val newFolgaNote: String = "",
 )
@@ -127,8 +128,12 @@ class FolgasViewModel(
             .sortedBy { it.requesterDate ?: LocalDate(9999, 12, 31) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun onDateChange(v: String) = _state.update { it.copy(newFolgaDate = v, error = null) }
-    fun onNoteChange(v: String) = _state.update { it.copy(newFolgaNote = v, error = null) }
+    fun onDateChange(v: String) = _state.update {
+        it.copy(newFolgaDate = v, error = null, successMessage = null)
+    }
+    fun onNoteChange(v: String) = _state.update {
+        it.copy(newFolgaNote = v, error = null, successMessage = null)
+    }
 
     fun reserve() {
         val me = currentUser.value ?: run {
@@ -150,9 +155,23 @@ class FolgasViewModel(
                     note = _state.value.newFolgaNote.takeIf { it.isNotBlank() },
                 )
             }.onSuccess {
-                _state.update { it.copy(isLoading = false, newFolgaDate = "", newFolgaNote = "") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        newFolgaDate = "",
+                        newFolgaNote = "",
+                        successMessage = "Dia de trabalho cadastrado com sucesso",
+                        error = null,
+                    )
+                }
             }.onFailure { e ->
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Erro ao cadastrar dia de trabalho") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = e.message ?: "Erro ao cadastrar dia de trabalho",
+                        successMessage = null,
+                    )
+                }
             }
         }
     }

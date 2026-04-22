@@ -121,6 +121,14 @@ fun FolgasScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    if (state.successMessage != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = state.successMessage!!,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     Button(
                         onClick = viewModel::reserve,

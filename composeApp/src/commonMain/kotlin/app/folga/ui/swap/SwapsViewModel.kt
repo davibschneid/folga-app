@@ -45,12 +45,6 @@ data class SwapsUiState(
     val selectedMyFolgaId: String? = null,
     val selectedTargetFolgaId: String? = null,
     val message: String = "",
-    /**
-     * Quando setado, a tela mostra um diálogo de confirmação avisando que
-     * a quota foi atingida. O usuário pode confirmar (vai em frente com a
-     * solicitação) ou cancelar.
-     */
-    val quotaWarning: SwapQuotaStatus? = null,
 )
 
 class SwapsViewModel(
@@ -117,37 +111,31 @@ class SwapsViewModel(
     fun onMessageChange(v: String) = _state.update { it.copy(message = v, error = null) }
 
     /**
-     * Primeiro passo da solicitação. Valida input, checa quota e — se o
-     * usuário já está no limite de trocas aceitas iniciadas no período —
-     * pede confirmação via [SwapsUiState.quotaWarning] em vez de submeter
-     * direto. A quota só é *avisada*, nunca bloqueia.
+     * Solicita uma troca. Bloqueia (não submete) se o usuário já está no
+     * limite de trocas aceitas iniciadas no período — a UI desabilita o
+     * botão nesse caso, mas mantemos a checagem aqui como defesa-em-
+     * profundidade pra casos de race condition (a quota pode ter batido
+     * o limite depois do último render).
      */
     fun requestSwap() {
         val me = currentUser.value ?: return
         val myId = _state.value.selectedMyFolgaId
         val targetId = _state.value.selectedTargetFolgaId
         if (myId == null || targetId == null) {
-            _state.update { it.copy(error = "Selecione sua folga e a folga do colega") }
+            _state.update { it.copy(error = "Selecione seu dia e o dia do colega") }
             return
         }
         val quota = quotaStatus.value
         if (quota != null && quota.atOrAboveQuota) {
-            // Não bloqueia — só avisa. O usuário pode confirmar mesmo assim.
-            _state.update { it.copy(error = null, quotaWarning = quota) }
+            _state.update {
+                it.copy(
+                    error = "Limite de ${quota.quota} trocas atingido no período. " +
+                        "Aguarde o próximo período (dia 16) para solicitar novas.",
+                )
+            }
             return
         }
         submitSwap()
-    }
-
-    /** Chamado pelo botão "Confirmar" do diálogo de aviso de quota. */
-    fun confirmOverQuota() {
-        _state.update { it.copy(quotaWarning = null) }
-        submitSwap()
-    }
-
-    /** Chamado pelo botão "Cancelar" do diálogo de aviso de quota. */
-    fun dismissQuotaWarning() {
-        _state.update { it.copy(quotaWarning = null) }
     }
 
     private fun submitSwap() {
