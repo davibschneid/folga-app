@@ -21,8 +21,10 @@ import kotlinx.datetime.toLocalDateTime
  *      * NOITE → 3 trocas
  *    Só conta troca **aceita** onde o usuário foi o **iniciador** (requester).
  *    O alvo (target) da troca NÃO consome quota do próprio período.
- *  - Ao solicitar troca, o app **avisa** quando a quota já foi atingida — não
- *    bloqueia. O usuário pode confirmar mesmo assim.
+ *  - Ao solicitar troca, o app **bloqueia** quando a quota já foi atingida
+ *    (antes era aviso não-bloqueante — comportamento mudou no PR #16). O
+ *    botão "Solicitar troca" fica desabilitado e `SwapsViewModel.requestSwap()`
+ *    rejeita a submissão até o próximo período (dia 16).
  *  - (Pendente) Regra de 2 plantões seguidos do noturno: depende de como a
  *    escala de plantão vai ser modelada. Adiada até decisão do cliente.
  */
