@@ -58,7 +58,7 @@ fun SwapsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Trocas de Folga") },
+                title = { Text("Trocar dia de trabalho") },
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text("Voltar") }
                 },
@@ -85,7 +85,7 @@ fun SwapsScreen(
             Text("Solicitar troca", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
-            Text("Minhas folgas agendadas", style = MaterialTheme.typography.titleSmall)
+            Text("Meus dias cadastrados", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             FolgaChips(
                 folgas = my.filter { it.status == FolgaStatus.SCHEDULED },
@@ -95,7 +95,7 @@ fun SwapsScreen(
             )
 
             Spacer(Modifier.height(12.dp))
-            Text("Folgas de colegas", style = MaterialTheme.typography.titleSmall)
+            Text("Dias cadastrados pelos colegas", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             FolgaChips(
                 folgas = colleagues.filter { it.status == FolgaStatus.SCHEDULED },
@@ -203,7 +203,7 @@ private fun FolgaChips(
     users: List<User>,
 ) {
     if (folgas.isEmpty()) {
-        Text("Nenhuma folga disponível.", style = MaterialTheme.typography.bodySmall)
+        Text("Nenhum dia disponível.", style = MaterialTheme.typography.bodySmall)
         return
     }
     Row(
