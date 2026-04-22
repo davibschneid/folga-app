@@ -53,6 +53,26 @@ class FirebaseAuthRepository(
     private fun initialRoleFor(email: String): UserRole =
         if (AdminBootstrap.isBootstrapAdmin(email)) UserRole.ADMIN else UserRole.USER
 
+    /**
+     * Reaplica o bootstrap de admin em perfis já existentes. Docs criados
+     * antes do PR #10 não têm o campo `role` no Firestore; na leitura caem
+     * pra [UserRole.USER] por compat. Sem isso, um admin bootstrap que já
+     * tinha conta nunca ganharia o botão "Administração" — o sign-in só
+     * devolvia o doc existente sem reavaliar a lista hardcoded.
+     *
+     * Só promove de USER → ADMIN e só pra e-mails do [AdminBootstrap]:
+     * não toca em ninguém que foi promovido/despromovido manualmente via
+     * tela de Admin, e não rebaixa ADMIN → USER (isso é trabalho do admin
+     * explicitamente).
+     */
+    private suspend fun repairBootstrapRole(profile: User): User {
+        if (profile.role == UserRole.ADMIN) return profile
+        if (!AdminBootstrap.isBootstrapAdmin(profile.email)) return profile
+        val promoted = profile.copy(role = UserRole.ADMIN)
+        runCatching { userRepository.updateRole(profile.id, UserRole.ADMIN) }
+        return promoted
+    }
+
     // Set synchronously at the end of a successful sign-in/sign-up so the UI
     // sees the resolved domain User even before `authStateChanged` re-emits
     // (it may have already fired with a null local profile because the SQLite
@@ -91,8 +111,9 @@ class FirebaseAuthRepository(
             ?: return@runCatching AuthResult.Failure(
                 "Perfil não encontrado. Conclua o cadastro antes de entrar."
             )
-        manualUser.value = profile
-        AuthResult.Success(profile)
+        val repaired = repairBootstrapRole(profile)
+        manualUser.value = repaired
+        AuthResult.Success(repaired)
     }.getOrElse { AuthResult.Failure(it.humanMessage("Email ou senha inválidos")) }
 
     override suspend fun signUpWithEmail(
@@ -214,8 +235,12 @@ class FirebaseAuthRepository(
                 }
         }
 
-        manualUser.value = profile
-        AuthResult.Success(profile)
+        // Se o usuário já tinha doc no Firestore (criado antes do PR #10
+        // sem campo `role`), reaplica o bootstrap pra promover USER → ADMIN
+        // quando o e-mail está na lista hardcoded.
+        val finalProfile = repairBootstrapRole(profile)
+        manualUser.value = finalProfile
+        AuthResult.Success(finalProfile)
     }.getOrElse { AuthResult.Failure(it.humanMessage("Falha ao entrar com Google")) }
 
     override suspend fun completeProfile(
