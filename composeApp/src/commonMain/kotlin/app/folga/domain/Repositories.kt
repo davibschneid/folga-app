@@ -7,7 +7,25 @@ interface UserRepository {
     suspend fun upsert(user: User)
     suspend fun findById(id: String): User?
     suspend fun findByEmail(email: String): User?
+    /**
+     * Atualiza apenas o [UserRole] de um usuário já existente. Usado pela
+     * tela de Administração para promover/despromover usuários.
+     */
+    suspend fun updateRole(userId: String, role: UserRole)
     fun observeAll(): Flow<List<User>>
+}
+
+/**
+ * CRUD da whitelist de e-mails autorizados a se cadastrar / entrar no app.
+ * Gerenciado exclusivamente pela tela de Administração. Se o e-mail do
+ * usuário não estiver autorizado (nem na whitelist nem no
+ * [AdminBootstrap]), o login/cadastro é rejeitado com mensagem clara.
+ */
+interface AllowedEmailRepository {
+    suspend fun isAllowed(email: String): Boolean
+    suspend fun add(email: String, addedBy: String)
+    suspend fun remove(email: String)
+    fun observeAll(): Flow<List<AllowedEmail>>
 }
 
 interface FolgaRepository {

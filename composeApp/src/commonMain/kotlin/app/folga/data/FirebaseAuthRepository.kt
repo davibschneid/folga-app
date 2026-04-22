@@ -1,10 +1,13 @@
 package app.folga.data
 
+import app.folga.domain.AdminBootstrap
+import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
 import app.folga.domain.Shift
 import app.folga.domain.User
 import app.folga.domain.UserRepository
+import app.folga.domain.UserRole
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FirebaseAuth
 import dev.gitlive.firebase.auth.FirebaseAuthException
@@ -29,8 +32,26 @@ import kotlinx.datetime.Clock
  */
 class FirebaseAuthRepository(
     private val userRepository: UserRepository,
+    private val allowedEmailRepository: AllowedEmailRepository,
     private val auth: FirebaseAuth = Firebase.auth,
 ) : AuthRepository {
+
+    /**
+     * Gate aplicado a todos os fluxos de entrada (signup email/senha,
+     * signin email/senha, signin com Google). Se o e-mail não está
+     * autorizado, nenhum outro side-effect acontece. Admins bootstrap
+     * passam direto mesmo sem estar na collection `allowed_emails`.
+     */
+    private suspend fun checkEmailAllowed(email: String): AuthResult.Failure? {
+        if (allowedEmailRepository.isAllowed(email)) return null
+        return AuthResult.Failure(
+            "Não autorizado. Solicite ao administrador que libere este e-mail."
+        )
+    }
+
+    /** Role inicial na primeira criação do perfil. */
+    private fun initialRoleFor(email: String): UserRole =
+        if (AdminBootstrap.isBootstrapAdmin(email)) UserRole.ADMIN else UserRole.USER
 
     // Set synchronously at the end of a successful sign-in/sign-up so the UI
     // sees the resolved domain User even before `authStateChanged` re-emits
@@ -50,6 +71,10 @@ class FirebaseAuthRepository(
     }
 
     override suspend fun signInWithEmail(email: String, password: String): AuthResult = runCatching {
+        // Gate antes de qualquer side-effect: se o admin revogou o e-mail,
+        // mesmo tendo cadastro no Firebase Auth o login é bloqueado.
+        checkEmailAllowed(email)?.let { return@runCatching it }
+
         val result = auth.signInWithEmailAndPassword(email, password)
         val fbUser = result.user ?: return@runCatching AuthResult.Failure("Falha ao autenticar")
         val profile = resolveProfile(fbUser)
@@ -68,6 +93,11 @@ class FirebaseAuthRepository(
         team: String,
         shift: Shift,
     ): AuthResult {
+        // Gate ANTES de criar conta no Firebase Auth — senão o e-mail não
+        // autorizado ficaria com conta órfã no Auth (gastando quota e
+        // bloqueando retry).
+        checkEmailAllowed(email)?.let { return it }
+
         val fbUser = runCatching { auth.createUserWithEmailAndPassword(email, password).user }
             .getOrElse {
                 return AuthResult.Failure(it.humanMessage("Erro ao cadastrar usuário"))
@@ -81,6 +111,7 @@ class FirebaseAuthRepository(
             registrationNumber = registrationNumber,
             team = team,
             shift = shift,
+            role = initialRoleFor(fbUser.email ?: email),
             createdAt = Clock.System.now(),
         )
 
@@ -114,19 +145,29 @@ class FirebaseAuthRepository(
         val fbUser = auth.signInWithCredential(credential).user
             ?: return@runCatching AuthResult.Failure("Falha ao autenticar com Google")
 
+        // Gate DEPOIS do signInWithCredential (precisa do email confirmado
+        // pelo Google) mas antes de gravar perfil. Se bloquear, desloga
+        // do Firebase pra evitar conta Firebase ativa sem autorização.
+        val resolvedEmail = fbUser.email ?: email
+        checkEmailAllowed(resolvedEmail)?.let { failure ->
+            runCatching { auth.signOut() }
+            return@runCatching failure
+        }
+
         // First-time Google sign-in: no profile yet. Create a minimal one so
-        // the app has something to render; the user can fill matrícula and
+        // the app has something to render; the user can fill matrícula e
         // equipe later from a profile screen (TODO — out of scope for this
         // PR). Email/senha signups already populate those fields in the
         // cadastro form.
         val existing = resolveProfile(fbUser)
         val profile = existing ?: User(
             id = fbUser.uid,
-            email = fbUser.email ?: email,
-            name = name.ifBlank { fbUser.email ?: email },
+            email = resolvedEmail,
+            name = name.ifBlank { resolvedEmail },
             registrationNumber = "",
             team = "",
             shift = Shift.MANHA,
+            role = initialRoleFor(resolvedEmail),
             createdAt = Clock.System.now(),
         )
 

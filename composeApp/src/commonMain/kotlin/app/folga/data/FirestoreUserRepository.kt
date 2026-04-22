@@ -2,6 +2,7 @@ package app.folga.data
 
 import app.folga.domain.User
 import app.folga.domain.UserRepository
+import app.folga.domain.UserRole
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
@@ -35,6 +36,13 @@ class FirestoreUserRepository(
         val query = users.where { "email" equalTo email }.get()
         val doc = query.documents.firstOrNull() ?: return null
         return doc.data(UserDto.serializer()).toDomain()
+    }
+
+    override suspend fun updateRole(userId: String, role: UserRole) {
+        // `update()` over `set(merge)` pra não apagar campos inexistentes no
+        // DTO — ex.: docs antigos sem `role` continuam válidos, só atualiza
+        // esse campo específico.
+        users.document(userId).update("role" to role.name)
     }
 
     override fun observeAll(): Flow<List<User>> =
