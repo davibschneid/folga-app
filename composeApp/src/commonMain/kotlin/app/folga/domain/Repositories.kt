@@ -56,6 +56,14 @@ interface SwapRepository {
     suspend fun cancel(swapId: String)
     fun observeIncoming(userId: String): Flow<List<SwapRequest>>
     fun observeOutgoing(userId: String): Flow<List<SwapRequest>>
+
+    /**
+     * Observa todas as trocas do sistema. As regras do Firestore só
+     * liberam esse listar global pra administradores — chamar como USER
+     * comum resulta em `permission-denied`. Usado pelo relatório de dias
+     * trabalhados pra montar a visão global (ADMIN).
+     */
+    fun observeAll(): Flow<List<SwapRequest>>
 }
 
 sealed interface AuthResult {

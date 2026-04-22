@@ -136,6 +136,11 @@ class FirestoreSwapRepository(
             snap.documents.map { it.data(SwapDto.serializer()).toDomain() }
         }
 
+    override fun observeAll(): Flow<List<SwapRequest>> =
+        swaps.snapshots.map { snap ->
+            snap.documents.map { it.data(SwapDto.serializer()).toDomain() }
+        }
+
     private companion object {
         const val SWAPS = "swaps"
         const val FOLGAS = "folgas"

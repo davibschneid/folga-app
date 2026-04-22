@@ -69,25 +69,25 @@ class ReportsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * Observa trocas relevantes pro relatório. O repositório só expõe
-     * observeIncoming/observeOutgoing por usuário (as regras do Firestore
-     * só liberam `read` de swap pra participante ou admin):
-     *  - ADMIN: no Firestore as regras permitem listar todos os swaps,
-     *    mas o repositório atual ainda filtra por participante. Então o
-     *    admin vê a linha dele completa e dos outros usuários só quando
-     *    ele foi participante. É uma limitação conhecida — pro relatório
-     *    global de verdade vai precisar de uma API nova (observeAll) no
-     *    SwapRepository.
-     *  - USER: vê só a própria linha, o recorte bate perfeitamente.
+     * Observa trocas relevantes pro relatório. As regras do Firestore só
+     * liberam `read` de swap pra participante ou admin, então:
+     *  - ADMIN: usa `observeAll()` pra ter a visão global real — contagem
+     *    correta de cedidos/assumidos de todos os colaboradores, mesmo
+     *    quando o admin não participa da troca.
+     *  - USER: usa `observeIncoming + observeOutgoing` (sem permissão pro
+     *    listar global) e o `rows` filtra pra mostrar só a própria linha.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private val swaps: StateFlow<List<SwapRequest>> = currentUser
         .flatMapLatest { u ->
-            if (u == null) flowOf(emptyList())
-            else combine(
-                swapRepository.observeIncoming(u.id),
-                swapRepository.observeOutgoing(u.id),
-            ) { inc, out -> (inc + out).distinctBy { it.id } }
+            when {
+                u == null -> flowOf(emptyList())
+                u.role == UserRole.ADMIN -> swapRepository.observeAll()
+                else -> combine(
+                    swapRepository.observeIncoming(u.id),
+                    swapRepository.observeOutgoing(u.id),
+                ) { inc, out -> (inc + out).distinctBy { it.id } }
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
