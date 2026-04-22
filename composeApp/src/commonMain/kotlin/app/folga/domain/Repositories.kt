@@ -7,7 +7,25 @@ interface UserRepository {
     suspend fun upsert(user: User)
     suspend fun findById(id: String): User?
     suspend fun findByEmail(email: String): User?
+    /**
+     * Atualiza apenas o [UserRole] de um usuário já existente. Usado pela
+     * tela de Administração para promover/despromover usuários.
+     */
+    suspend fun updateRole(userId: String, role: UserRole)
     fun observeAll(): Flow<List<User>>
+}
+
+/**
+ * CRUD da whitelist de e-mails autorizados a se cadastrar / entrar no app.
+ * Gerenciado exclusivamente pela tela de Administração. Se o e-mail do
+ * usuário não estiver autorizado (nem na whitelist nem no
+ * [AdminBootstrap]), o login/cadastro é rejeitado com mensagem clara.
+ */
+interface AllowedEmailRepository {
+    suspend fun isAllowed(email: String): Boolean
+    suspend fun add(email: String, addedBy: String)
+    suspend fun remove(email: String)
+    fun observeAll(): Flow<List<AllowedEmail>>
 }
 
 interface FolgaRepository {
@@ -48,16 +66,30 @@ interface AuthRepository {
         name: String,
         registrationNumber: String,
         team: String,
+        shift: Shift,
     ): AuthResult
 
     /**
      * Sign in with a Google ID token. On Android/iOS the token is obtained via the
      * platform-specific Google Sign-In SDK and then passed to this method.
+     * For brand-new Google users this creates a minimal profile with empty
+     * matrícula/equipe — the UI then routes the user to a "completar cadastro"
+     * screen that calls [completeProfile] before letting them into the app.
      */
     suspend fun signInWithGoogleIdToken(
         idToken: String,
         email: String,
         name: String,
+    ): AuthResult
+
+    /**
+     * Fills in the fields that Google Sign-In can't supply on its own
+     * (matrícula, equipe, turno) for the currently signed-in user.
+     */
+    suspend fun completeProfile(
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
     ): AuthResult
 
     suspend fun signOut()

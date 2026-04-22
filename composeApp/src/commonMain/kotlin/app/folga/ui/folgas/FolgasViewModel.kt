@@ -66,7 +66,7 @@ class FolgasViewModel(
         val dateStr = _state.value.newFolgaDate.trim()
         val date = runCatching { LocalDate.parse(dateStr) }.getOrNull()
         if (date == null) {
-            _state.update { it.copy(error = "Data inválida. Use o formato AAAA-MM-DD") }
+            _state.update { it.copy(error = "Selecione uma data válida no calendário") }
             return
         }
         _state.update { it.copy(isLoading = true, error = null) }

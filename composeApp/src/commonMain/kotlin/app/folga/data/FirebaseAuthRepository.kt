@@ -1,9 +1,13 @@
 package app.folga.data
 
+import app.folga.domain.AdminBootstrap
+import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
+import app.folga.domain.Shift
 import app.folga.domain.User
 import app.folga.domain.UserRepository
+import app.folga.domain.UserRole
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FirebaseAuth
 import dev.gitlive.firebase.auth.FirebaseAuthException
@@ -11,6 +15,7 @@ import dev.gitlive.firebase.auth.FirebaseAuthInvalidCredentialsException
 import dev.gitlive.firebase.auth.FirebaseAuthInvalidUserException
 import dev.gitlive.firebase.auth.FirebaseAuthUserCollisionException
 import dev.gitlive.firebase.auth.FirebaseUser
+import dev.gitlive.firebase.auth.GoogleAuthProvider
 import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,8 +32,46 @@ import kotlinx.datetime.Clock
  */
 class FirebaseAuthRepository(
     private val userRepository: UserRepository,
+    private val allowedEmailRepository: AllowedEmailRepository,
     private val auth: FirebaseAuth = Firebase.auth,
 ) : AuthRepository {
+
+    /**
+     * Gate aplicado a todos os fluxos de entrada (signup email/senha,
+     * signin email/senha, signin com Google). Se o e-mail não está
+     * autorizado, nenhum outro side-effect acontece. Admins bootstrap
+     * passam direto mesmo sem estar na collection `allowed_emails`.
+     */
+    private suspend fun checkEmailAllowed(email: String): AuthResult.Failure? {
+        if (allowedEmailRepository.isAllowed(email)) return null
+        return AuthResult.Failure(
+            "Não autorizado. Solicite ao administrador que libere este e-mail."
+        )
+    }
+
+    /** Role inicial na primeira criação do perfil. */
+    private fun initialRoleFor(email: String): UserRole =
+        if (AdminBootstrap.isBootstrapAdmin(email)) UserRole.ADMIN else UserRole.USER
+
+    /**
+     * Reaplica o bootstrap de admin em perfis já existentes. Docs criados
+     * antes do PR #10 não têm o campo `role` no Firestore; na leitura caem
+     * pra [UserRole.USER] por compat. Sem isso, um admin bootstrap que já
+     * tinha conta nunca ganharia o botão "Administração" — o sign-in só
+     * devolvia o doc existente sem reavaliar a lista hardcoded.
+     *
+     * Só promove de USER → ADMIN e só pra e-mails do [AdminBootstrap]:
+     * não toca em ninguém que foi promovido/despromovido manualmente via
+     * tela de Admin, e não rebaixa ADMIN → USER (isso é trabalho do admin
+     * explicitamente).
+     */
+    private suspend fun repairBootstrapRole(profile: User): User {
+        if (profile.role == UserRole.ADMIN) return profile
+        if (!AdminBootstrap.isBootstrapAdmin(profile.email)) return profile
+        val promoted = profile.copy(role = UserRole.ADMIN)
+        runCatching { userRepository.updateRole(profile.id, UserRole.ADMIN) }
+        return promoted
+    }
 
     // Set synchronously at the end of a successful sign-in/sign-up so the UI
     // sees the resolved domain User even before `authStateChanged` re-emits
@@ -48,14 +91,29 @@ class FirebaseAuthRepository(
     }
 
     override suspend fun signInWithEmail(email: String, password: String): AuthResult = runCatching {
+        // Gate antes de qualquer side-effect: se o admin revogou o e-mail,
+        // mesmo tendo cadastro no Firebase Auth o login é bloqueado.
+        // `checkEmailAllowed` pode lançar no Firestore (rede/permissão).
+        // Precisamos de um runCatching local aqui pra que essa exceção
+        // não caia no `.getOrElse` externo e seja mapeada como "Email ou
+        // senha inválidos" — feedback enganoso pro usuário.
+        runCatching { checkEmailAllowed(email) }
+            .getOrElse { ex ->
+                return@runCatching AuthResult.Failure(
+                    ex.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+            ?.let { return@runCatching it }
+
         val result = auth.signInWithEmailAndPassword(email, password)
         val fbUser = result.user ?: return@runCatching AuthResult.Failure("Falha ao autenticar")
         val profile = resolveProfile(fbUser)
             ?: return@runCatching AuthResult.Failure(
                 "Perfil não encontrado. Conclua o cadastro antes de entrar."
             )
-        manualUser.value = profile
-        AuthResult.Success(profile)
+        val repaired = repairBootstrapRole(profile)
+        manualUser.value = repaired
+        AuthResult.Success(repaired)
     }.getOrElse { AuthResult.Failure(it.humanMessage("Email ou senha inválidos")) }
 
     override suspend fun signUpWithEmail(
@@ -64,7 +122,21 @@ class FirebaseAuthRepository(
         name: String,
         registrationNumber: String,
         team: String,
+        shift: Shift,
     ): AuthResult {
+        // Gate ANTES de criar conta no Firebase Auth — senão o e-mail não
+        // autorizado ficaria com conta órfã no Auth (gastando quota e
+        // bloqueando retry). `checkEmailAllowed` faz I/O no Firestore, que
+        // pode lançar (rede/permissão) — runCatching aqui evita que essa
+        // exceção suba pro viewModelScope.launch e crashe o app.
+        runCatching { checkEmailAllowed(email) }
+            .getOrElse {
+                return AuthResult.Failure(
+                    it.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+            ?.let { return it }
+
         val fbUser = runCatching { auth.createUserWithEmailAndPassword(email, password).user }
             .getOrElse {
                 return AuthResult.Failure(it.humanMessage("Erro ao cadastrar usuário"))
@@ -77,6 +149,8 @@ class FirebaseAuthRepository(
             name = name,
             registrationNumber = registrationNumber,
             team = team,
+            shift = shift,
+            role = initialRoleFor(fbUser.email ?: email),
             createdAt = Clock.System.now(),
         )
 
@@ -102,10 +176,109 @@ class FirebaseAuthRepository(
         idToken: String,
         email: String,
         name: String,
-    ): AuthResult =
-        // Google Sign-In wiring lives in platform-specific code and will be
-        // plugged in a follow-up PR together with the native Google Sign-In SDKs.
-        AuthResult.Failure("Login com Google ainda não disponível")
+    ): AuthResult = runCatching {
+        // Exchange the Google ID token for a Firebase credential. `null`
+        // access token is the supported value when using Credential Manager /
+        // GoogleSignIn — only the ID token is required.
+        val credential = GoogleAuthProvider.credential(idToken, null)
+        val fbUser = auth.signInWithCredential(credential).user
+            ?: return@runCatching AuthResult.Failure("Falha ao autenticar com Google")
+
+        // Gate DEPOIS do signInWithCredential (precisa do email confirmado
+        // pelo Google) mas antes de gravar perfil. Se bloquear, desloga
+        // do Firebase pra evitar conta Firebase ativa sem autorização.
+        // Importante: o `runCatching` externo pega exceção do Firestore
+        // e retorna Failure, MAS pula o signOut — então precisamos de um
+        // runCatching local pra garantir que a sessão do Firebase Auth é
+        // sempre derrubada quando o gate falha ou lança. Sem isso, um erro
+        // de rede aqui deixaria o usuário logado em `authStateChanged`, e
+        // no próximo reabrir do app ele entraria sem passar pelo gate.
+        val resolvedEmail = fbUser.email ?: email
+        val gateResult = runCatching { checkEmailAllowed(resolvedEmail) }
+            .getOrElse { ex ->
+                runCatching { auth.signOut() }
+                return@runCatching AuthResult.Failure(
+                    ex.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+        gateResult?.let { failure ->
+            runCatching { auth.signOut() }
+            return@runCatching failure
+        }
+
+        // First-time Google sign-in: no profile yet. Create a minimal one so
+        // the app has something to render; the user can fill matrícula e
+        // equipe later from a profile screen (TODO — out of scope for this
+        // PR). Email/senha signups already populate those fields in the
+        // cadastro form.
+        val existing = resolveProfile(fbUser)
+        val profile = existing ?: User(
+            id = fbUser.uid,
+            email = resolvedEmail,
+            name = name.ifBlank { resolvedEmail },
+            registrationNumber = "",
+            team = "",
+            shift = Shift.MANHA,
+            role = initialRoleFor(resolvedEmail),
+            createdAt = Clock.System.now(),
+        )
+
+        if (existing == null) {
+            runCatching { userRepository.upsert(profile) }
+                .onFailure { upsertError ->
+                    // Keep the Firebase user signed in (avoids a second Google
+                    // prompt loop) but surface the error so the UI can retry
+                    // the upsert on the next screen.
+                    return@runCatching AuthResult.Failure(
+                        upsertError.message ?: "Erro ao salvar perfil. Tente novamente."
+                    )
+                }
+        }
+
+        // Se o usuário já tinha doc no Firestore (criado antes do PR #10
+        // sem campo `role`), reaplica o bootstrap pra promover USER → ADMIN
+        // quando o e-mail está na lista hardcoded.
+        val finalProfile = repairBootstrapRole(profile)
+        manualUser.value = finalProfile
+        AuthResult.Success(finalProfile)
+    }.getOrElse { AuthResult.Failure(it.humanMessage("Falha ao entrar com Google")) }
+
+    override suspend fun completeProfile(
+        registrationNumber: String,
+        team: String,
+        shift: Shift,
+    ): AuthResult = runCatching {
+        val fbUser = auth.currentUser
+            ?: return@runCatching AuthResult.Failure("Nenhum usuário logado")
+
+        // Start from the existing profile so we don't clobber name/email and so
+        // `createdAt` stays stable. Fall back to a fresh profile if, for some
+        // reason, the user doc doesn't exist yet (e.g. first-run after Google
+        // sign-in where the initial upsert failed). No fallback precisamos
+        // reaplicar o bootstrap: se o upsert inicial falhou pra um admin
+        // bootstrap, não queremos que o "completar cadastro" grave ele como
+        // USER e derrube o privilégio.
+        val fallbackEmail = fbUser.email ?: ""
+        val base = resolveProfile(fbUser) ?: User(
+            id = fbUser.uid,
+            email = fallbackEmail,
+            name = fallbackEmail,
+            registrationNumber = "",
+            team = "",
+            shift = Shift.MANHA,
+            role = initialRoleFor(fallbackEmail),
+            createdAt = Clock.System.now(),
+        )
+
+        val updated = base.copy(
+            registrationNumber = registrationNumber,
+            team = team,
+            shift = shift,
+        )
+        userRepository.upsert(updated)
+        manualUser.value = updated
+        AuthResult.Success(updated)
+    }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar perfil") }
 
     override suspend fun signOut() {
         runCatching { auth.signOut() }

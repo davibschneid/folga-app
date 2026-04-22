@@ -1,10 +1,13 @@
 package app.folga.data
 
+import app.folga.domain.AllowedEmail
 import app.folga.domain.Folga
 import app.folga.domain.FolgaStatus
+import app.folga.domain.Shift
 import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
 import app.folga.domain.User
+import app.folga.domain.UserRole
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
@@ -23,7 +26,22 @@ internal data class UserDto(
     val name: String = "",
     val registrationNumber: String = "",
     val team: String = "",
+    // Nullable + defaulted so docs created before PR #8 (pré-turno) keep
+    // deserializing. `Shift.fromString` falls back to MANHA on unknown/missing.
+    val shift: String? = null,
+    // Nullable + defaulted para docs criados antes do PR #10. `UserRole.fromString`
+    // cai para USER em qualquer valor desconhecido/ausente, mantendo o
+    // princípio do menor privilégio: se um doc perdeu o campo, o usuário
+    // vira um usuário comum até ser repromovido.
+    val role: String? = null,
     val createdAt: Long = 0L,
+)
+
+@Serializable
+internal data class AllowedEmailDto(
+    val email: String = "",
+    val addedBy: String = "",
+    val addedAt: Long = 0L,
 )
 
 @Serializable
@@ -55,6 +73,8 @@ internal fun User.toDto(): UserDto = UserDto(
     name = name,
     registrationNumber = registrationNumber,
     team = team,
+    shift = shift.name,
+    role = role.name,
     createdAt = createdAt.toEpochMilliseconds(),
 )
 
@@ -64,7 +84,21 @@ internal fun UserDto.toDomain(): User = User(
     name = name,
     registrationNumber = registrationNumber,
     team = team,
+    shift = Shift.fromString(shift),
+    role = UserRole.fromString(role),
     createdAt = Instant.fromEpochMilliseconds(createdAt),
+)
+
+internal fun AllowedEmail.toDto(): AllowedEmailDto = AllowedEmailDto(
+    email = email,
+    addedBy = addedBy,
+    addedAt = addedAt.toEpochMilliseconds(),
+)
+
+internal fun AllowedEmailDto.toDomain(): AllowedEmail = AllowedEmail(
+    email = email,
+    addedBy = addedBy,
+    addedAt = Instant.fromEpochMilliseconds(addedAt),
 )
 
 internal fun Folga.toDto(): FolgaDto = FolgaDto(
