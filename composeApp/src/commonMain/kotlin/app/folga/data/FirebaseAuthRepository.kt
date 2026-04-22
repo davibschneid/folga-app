@@ -95,8 +95,16 @@ class FirebaseAuthRepository(
     ): AuthResult {
         // Gate ANTES de criar conta no Firebase Auth — senão o e-mail não
         // autorizado ficaria com conta órfã no Auth (gastando quota e
-        // bloqueando retry).
-        checkEmailAllowed(email)?.let { return it }
+        // bloqueando retry). `checkEmailAllowed` faz I/O no Firestore, que
+        // pode lançar (rede/permissão) — runCatching aqui evita que essa
+        // exceção suba pro viewModelScope.launch e crashe o app.
+        runCatching { checkEmailAllowed(email) }
+            .getOrElse {
+                return AuthResult.Failure(
+                    it.message ?: "Erro ao verificar autorização. Tente novamente."
+                )
+            }
+            ?.let { return it }
 
         val fbUser = runCatching { auth.createUserWithEmailAndPassword(email, password).user }
             .getOrElse {
@@ -198,14 +206,19 @@ class FirebaseAuthRepository(
         // Start from the existing profile so we don't clobber name/email and so
         // `createdAt` stays stable. Fall back to a fresh profile if, for some
         // reason, the user doc doesn't exist yet (e.g. first-run after Google
-        // sign-in where the initial upsert failed).
+        // sign-in where the initial upsert failed). No fallback precisamos
+        // reaplicar o bootstrap: se o upsert inicial falhou pra um admin
+        // bootstrap, não queremos que o "completar cadastro" grave ele como
+        // USER e derrube o privilégio.
+        val fallbackEmail = fbUser.email ?: ""
         val base = resolveProfile(fbUser) ?: User(
             id = fbUser.uid,
-            email = fbUser.email ?: "",
-            name = fbUser.email ?: "",
+            email = fallbackEmail,
+            name = fallbackEmail,
             registrationNumber = "",
             team = "",
             shift = Shift.MANHA,
+            role = initialRoleFor(fallbackEmail),
             createdAt = Clock.System.now(),
         )
 
