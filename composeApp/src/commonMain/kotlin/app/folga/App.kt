@@ -15,6 +15,7 @@ import app.folga.ui.folgas.FolgasScreen
 import app.folga.ui.login.LoginScreen
 import app.folga.ui.profile.ProfileScreen
 import app.folga.ui.register.RegisterScreen
+import app.folga.ui.reports.ReportsScreen
 import app.folga.ui.swap.SwapsScreen
 import app.folga.ui.theme.FolgaTheme
 import org.koin.compose.KoinContext
@@ -28,6 +29,7 @@ sealed interface Screen {
     data object Swaps : Screen
     data object Admin : Screen
     data object Profile : Screen
+    data object Reports : Screen
 }
 
 /**
@@ -89,6 +91,10 @@ private fun AppContent() {
             onOpenSwaps = { screen = Screen.Swaps },
             onOpenProfile = { screen = Screen.Profile },
             onOpenAdmin = { screen = Screen.Admin }.takeIf { user?.role == UserRole.ADMIN },
+            // Relatório de dias trabalhados é visível pra todo mundo; o
+            // ViewModel recorta a view: ADMIN vê todos os colaboradores,
+            // USER só vê a própria linha.
+            onOpenReports = { screen = Screen.Reports },
         )
 
         Screen.Swaps -> SwapsScreen(
@@ -107,5 +113,7 @@ private fun AppContent() {
         }
 
         Screen.Profile -> ProfileScreen(onBack = { screen = Screen.Folgas })
+
+        Screen.Reports -> ReportsScreen(onBack = { screen = Screen.Folgas })
     }
 }

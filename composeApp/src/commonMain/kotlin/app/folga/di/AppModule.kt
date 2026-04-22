@@ -16,6 +16,7 @@ import app.folga.ui.folgas.FolgasViewModel
 import app.folga.ui.login.LoginViewModel
 import app.folga.ui.profile.ProfileViewModel
 import app.folga.ui.register.RegisterViewModel
+import app.folga.ui.reports.ReportsViewModel
 import app.folga.ui.swap.SwapsViewModel
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
@@ -44,4 +45,5 @@ val appModule = module {
     factory { SwapsViewModel(get(), get(), get(), get()) }
     factory { AdminViewModel(get(), get(), get()) }
     factory { ProfileViewModel(get()) }
+    factory { ReportsViewModel(get(), get(), get(), get()) }
 }

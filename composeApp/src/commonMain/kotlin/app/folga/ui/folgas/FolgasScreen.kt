@@ -60,6 +60,7 @@ fun FolgasScreen(
     // botão de Admin nesse caso. Manter null (ao invés de um lambda vazio)
     // garante que a UI não mostre um botão "morto".
     onOpenAdmin: (() -> Unit)? = null,
+    onOpenReports: () -> Unit,
     viewModel: FolgasViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -89,6 +90,12 @@ fun FolgasScreen(
                         modifier = Modifier.padding(end = 8.dp),
                     ) {
                         Text("Perfil")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenReports,
+                        modifier = Modifier.padding(end = 8.dp),
+                    ) {
+                        Text("Relatório")
                     }
                     OutlinedButton(onClick = onOpenSwaps, modifier = Modifier.padding(end = 12.dp)) {
                         Text("Trocas")
