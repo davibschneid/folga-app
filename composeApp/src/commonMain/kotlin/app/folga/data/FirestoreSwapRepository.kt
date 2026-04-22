@@ -29,7 +29,6 @@ class FirestoreSwapRepository(
 
     override suspend fun request(
         fromFolgaId: String,
-        toFolgaId: String,
         requesterId: String,
         targetId: String,
         message: String?,
@@ -38,7 +37,6 @@ class FirestoreSwapRepository(
         val swap = SwapRequest(
             id = doc.id,
             fromFolgaId = fromFolgaId,
-            toFolgaId = toFolgaId,
             requesterId = requesterId,
             targetId = targetId,
             status = SwapStatus.PENDING,
@@ -52,45 +50,41 @@ class FirestoreSwapRepository(
 
     override suspend fun accept(swapId: String) {
         val swapRef = swaps.document(swapId)
-        // runTransaction reads + writes atomically under optimistic
-        // concurrency: if any of the three docs mutate between the get()s
-        // and the commit, Firestore aborts and re-runs the block. That's
-        // what keeps two concurrent accept()s (or an accept racing a
-        // folga cancel) from corrupting ownership.
+        // runTransaction: leituras + escritas atômicas com optimistic
+        // concurrency. Se o swap ou a folga mudarem entre o get() e o
+        // commit, Firestore aborta e refaz o bloco — é isso que impede
+        // dois accept() concorrentes (ou um accept racing com o cancel
+        // da folga) de corromperem a ownership.
         firestore.runTransaction {
             val swapSnap = get(swapRef)
             if (!swapSnap.exists) return@runTransaction
             val swap = swapSnap.data(SwapDto.serializer())
 
-            // Only a PENDING swap is acceptable. Without this guard a
-            // concurrent accept() that already committed would trigger
-            // a retry which re-reads the post-swap folgas and then
-            // writes them back *un*-swapped, reverting ownership.
+            // Só aceita swaps PENDING. Sem esse guard, um accept() que já
+            // commitou dispararia retry, releria a folga pós-flip e
+            // reescreveria de volta desfazendo a transferência.
             if (swap.status != SwapStatus.PENDING.name) return@runTransaction
 
             val fromRef = folgas.document(swap.fromFolgaId)
-            val toRef = folgas.document(swap.toFolgaId)
             val fromSnap = get(fromRef)
-            val toSnap = get(toRef)
-            if (!fromSnap.exists || !toSnap.exists) return@runTransaction
+            if (!fromSnap.exists) return@runTransaction
             val from = fromSnap.data(FolgaDto.serializer())
-            val to = toSnap.data(FolgaDto.serializer())
-            // Don't resurrect a CANCELLED / SWAPPED folga. Only folgas
-            // still SCHEDULED are valid targets for the ownership swap —
-            // otherwise a user who cancelled before the other side hit
-            // accept would see their folga flip back to SWAPPED.
-            if (from.status != FolgaStatus.SCHEDULED.name ||
-                to.status != FolgaStatus.SCHEDULED.name) return@runTransaction
+            // Só aceita transferir folga ainda SCHEDULED. Se o requester
+            // cancelou antes do target aceitar, a folga já virou CANCELLED
+            // — não queremos ressurgir como SWAPPED.
+            if (from.status != FolgaStatus.SCHEDULED.name) return@runTransaction
 
+            // Fluxo unidirecional: o target assume o dia. Ownership da
+            // folga muda pro target e status vira SWAPPED pra sair da
+            // lista "Meus dias cadastrados" do requester. Ambos continuam
+            // vendo o compromisso na seção "Trocas agendadas" da home.
             set(
                 documentRef = fromRef,
                 strategy = FolgaDto.serializer(),
-                data = from.copy(userId = to.userId, status = FolgaStatus.SWAPPED.name),
-            )
-            set(
-                documentRef = toRef,
-                strategy = FolgaDto.serializer(),
-                data = to.copy(userId = from.userId, status = FolgaStatus.SWAPPED.name),
+                data = from.copy(
+                    userId = swap.targetId,
+                    status = FolgaStatus.SWAPPED.name,
+                ),
             )
             set(
                 documentRef = swapRef,

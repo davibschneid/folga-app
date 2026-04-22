@@ -37,9 +37,15 @@ interface FolgaRepository {
 }
 
 interface SwapRepository {
+    /**
+     * Pedido unidirecional de troca: o requester (dono de [fromFolgaId])
+     * está pedindo que [targetId] assuma esse dia. Se aceito, a folga
+     * referenciada por [fromFolgaId] tem ownership transferido pro target
+     * e status vira [app.folga.domain.FolgaStatus.SWAPPED]. Não há dia de
+     * contrapartida — o target só passa a ter um compromisso a mais.
+     */
     suspend fun request(
         fromFolgaId: String,
-        toFolgaId: String,
         requesterId: String,
         targetId: String,
         message: String?,

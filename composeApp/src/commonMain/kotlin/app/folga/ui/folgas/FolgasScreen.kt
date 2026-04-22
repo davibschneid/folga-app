@@ -188,8 +188,9 @@ fun FolgasScreen(
 }
 
 /**
- * Linha exibindo uma troca agendada: "Fulano ↔ Ciclano" em negrito, as duas
- * datas (quem trabalha pra quem em cada dia) e o status atual da troca.
+ * Linha exibindo uma troca agendada unidirecional: o [requesterName]
+ * cadastrou a [date] e o [targetName] vai trabalhar por ele nesse dia.
+ * No modelo unidirecional só existe uma data (o dia sendo transferido).
  */
 @Composable
 private fun ScheduledSwapRow(swap: ScheduledSwap) {
@@ -198,16 +199,13 @@ private fun ScheduledSwapRow(swap: ScheduledSwap) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
             Text(
-                text = "${swap.requesterName} ↔ ${swap.targetName}",
+                text = "${swap.requesterName} → ${swap.targetName}",
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(Modifier.height(4.dp))
-            val reqDate = swap.requesterDate?.formatBrazilian() ?: "—"
-            val tgtDate = swap.targetDate?.formatBrazilian() ?: "—"
+            val day = swap.date?.formatBrazilian() ?: "—"
             Text(
-                // "Fulano trabalha no dia DD/MM/AAAA para Ciclano" e vice-versa.
-                text = "${swap.targetName} trabalha em $reqDate " +
-                    "• ${swap.requesterName} trabalha em $tgtDate",
+                text = "${swap.targetName} trabalha em $day no lugar de ${swap.requesterName}",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.height(4.dp))

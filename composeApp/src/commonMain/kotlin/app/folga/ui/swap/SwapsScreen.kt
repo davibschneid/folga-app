@@ -50,7 +50,7 @@ fun SwapsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val my by viewModel.myFolgas.collectAsStateWithLifecycle()
-    val colleagues by viewModel.colleagueFolgas.collectAsStateWithLifecycle()
+    val colleagues by viewModel.colleagues.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
     val incoming by viewModel.incoming.collectAsStateWithLifecycle()
     val outgoing by viewModel.outgoing.collectAsStateWithLifecycle()
@@ -92,13 +92,12 @@ fun SwapsScreen(
             Text("Solicitar troca", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                // Explicação curta do modelo pra o usuário entender pra quem
-                // cada dia vai. "Meu dia" = dia que eu cadastrei e quero que
-                // alguém trabalhe por mim; "Dia do colega" = dia que ele
-                // cadastrou e eu vou trabalhar por ele.
-                text = "Selecione um dia seu e um dia do colega. Se a troca for " +
-                    "aceita, o colega trabalha no dia que você selecionou e " +
-                    "você trabalha no dia que ele selecionou.",
+                // Explicação curta do modelo pra o usuário entender o que
+                // acontece depois do aceite. Modelo unidirecional: o colega
+                // escolhido passa a trabalhar no dia que o usuário selecionou
+                // (o usuário fica sem esse dia de trabalho).
+                text = "Selecione um dia seu e escolha um colega. Se ele " +
+                    "aceitar, vai trabalhar no dia selecionado no seu lugar.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -114,13 +113,12 @@ fun SwapsScreen(
             )
 
             Spacer(Modifier.height(12.dp))
-            Text("Dias cadastrados pelos colegas", style = MaterialTheme.typography.titleSmall)
+            Text("Escolha um colega", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
-            FolgaChips(
-                folgas = colleagues.filter { it.status == FolgaStatus.SCHEDULED },
-                selectedId = state.selectedTargetFolgaId,
-                onSelect = viewModel::selectTarget,
-                users = users,
+            UserChips(
+                users = colleagues,
+                selectedId = state.selectedTargetUserId,
+                onSelect = viewModel::selectTargetUser,
             )
 
             Spacer(Modifier.height(8.dp))
@@ -223,6 +221,40 @@ private fun FolgaChips(
                 selected = selectedId == folga.id,
                 onClick = { onSelect(folga.id) },
                 label = { Text("${folga.date.formatBrazilian()} · $owner") },
+                colors = FilterChipDefaults.filterChipColors(),
+            )
+        }
+    }
+}
+
+/**
+ * Lista de colegas em formato de FilterChip. No modelo unidirecional novo
+ * o usuário seleciona *um colega* (não mais um dia específico do colega)
+ * pra assumir o dia que ele cadastrou. Por isso aqui a chip mostra só o
+ * nome — não tem data nem status porque o colega não precisou cadastrar
+ * nada pro pedido existir.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun UserChips(
+    users: List<User>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+) {
+    if (users.isEmpty()) {
+        Text("Nenhum colega disponível.", style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        users.forEach { user ->
+            FilterChip(
+                selected = selectedId == user.id,
+                onClick = { onSelect(user.id) },
+                label = { Text(user.name) },
                 colors = FilterChipDefaults.filterChipColors(),
             )
         }

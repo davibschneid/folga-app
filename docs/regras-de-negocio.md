@@ -64,18 +64,31 @@ com `accept()` de uma troca que estava mirando nesse dia.
 
 ## 3. Trocas de dia de trabalho
 
-### 3.1 Fluxo geral ✅ (PR #1, PR #3)
+### 3.1 Fluxo geral ✅ (unidirecional)
 Quando **A** solicita uma troca com **B**, o pedido é: _"B, trabalhe no
-meu lugar no dia X. Em troca, eu trabalho no seu lugar no dia Y."_
+meu lugar no dia X."_ Não há dia de contrapartida — o colega escolhido
+apenas assume o dia que o solicitante cadastrou.
 
-1. **A** (requester) escolhe um dia seu cadastrado (dia que A quer trocar
-   com alguém) e um dia cadastrado por **B**.
-2. **A** solicita troca. Status inicial: `PENDING`.
-3. **B** pode **Aceitar**, **Recusar** ou **A** pode **Cancelar**,
+1. **A** (requester) escolhe um dia seu cadastrado (dia que A não quer
+   mais trabalhar).
+2. **A** escolhe um **colega B** da lista de usuários (escolhe a pessoa,
+   não um dia específico dela).
+3. **A** envia a solicitação. Status inicial: `PENDING`.
+4. **B** pode **Aceitar**, **Recusar** ou **A** pode **Cancelar**,
    desde que a troca ainda esteja `PENDING`.
-4. Ao aceitar: os dois dias trocam de dono em uma transação Firestore.
-   Ambos passam a `SWAPPED`. Na prática, A trabalha no dia que era de B
-   e B trabalha no dia que era de A.
+5. Ao aceitar: em uma transação Firestore, o dia **muda de dono** para
+   B e o status vira `SWAPPED`. A sai do compromisso; B assume.
+
+**Implicações do modelo unidirecional:**
+- Só o solicitante "paga" o dia. O colega ganha um compromisso a mais
+  sem precisar oferecer nada em contrapartida.
+- Não existe checagem de disponibilidade do colega — ele pode recusar
+  se não puder assumir.
+- Só existe **uma** data envolvida em cada troca (a do solicitante).
+  A tela inicial mostra "A → B · DD/MM/AAAA".
+- Trocas antigas do modelo bidirecional (com `toFolgaId` preenchido)
+  continuam legíveis no Firestore — o campo é ignorado e apenas a
+  folga do solicitante é considerada.
 
 ### 3.2 Quota de trocas por período ✅ (PR #9)
 
@@ -279,11 +292,12 @@ Você atingiu a quota de trocas aceitas no período corrente (dia 16 ao dia
   virada do período).
 
 ### "Meu dia cadastrado sumiu depois que o colega aceitou a troca — é bug?"
-Não — isso é o comportamento esperado. Quando você pede uma troca, você
-está pedindo que o colega **trabalhe no seu lugar** naquele dia: o seu dia
-cadastrado passa pra ele, e o dia cadastrado dele passa pra você. Os dois
-ficam com status `SWAPPED` e aparecem na tela **Trocar dia de trabalho**
-nas abas **Enviadas** / **Recebidas**.
+Não — é o comportamento esperado no modelo unidirecional. Quando você
+pede uma troca, você está pedindo que o colega **trabalhe no seu lugar**
+naquele dia. Ao aceitar, o dia passa a ser dele (status `SWAPPED`) e
+some da sua lista "Meus dias cadastrados". Ele continua visível na
+seção **Trocas agendadas** da tela inicial e também nas abas
+**Enviadas** / **Recebidas** da tela de trocas.
 
 ### "Não consigo entrar com minha conta Google — ela diz não autorizada."
 O admin ainda não adicionou seu e-mail à whitelist. Peça para ele incluir

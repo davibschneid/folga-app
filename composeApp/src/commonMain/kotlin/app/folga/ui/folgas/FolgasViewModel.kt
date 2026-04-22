@@ -33,17 +33,17 @@ data class FolgasUiState(
 
 /**
  * Linha de "troca agendada" exibida na tela inicial. Representa uma troca
- * que envolve o usuário atual (seja como solicitante, seja como alvo).
- * Agrega as datas dos dois dias de trabalho envolvidos e os nomes das
- * duas pessoas.
+ * unidirecional que envolve o usuário atual: o [requesterName] cadastrou
+ * o dia [date] e está pedindo (ou já conseguiu) que [targetName] assuma
+ * esse dia. No modelo unidirecional só existe uma data — a do dia sendo
+ * transferido.
  */
 data class ScheduledSwap(
     val id: String,
     val status: SwapStatus,
     val requesterName: String,
     val targetName: String,
-    val requesterDate: LocalDate?,
-    val targetDate: LocalDate?,
+    val date: LocalDate?,
 )
 
 class FolgasViewModel(
@@ -121,11 +121,10 @@ class FolgasViewModel(
                     status = swap.status,
                     requesterName = userById[swap.requesterId]?.name ?: swap.requesterId,
                     targetName = userById[swap.targetId]?.name ?: swap.targetId,
-                    requesterDate = folgaById[swap.fromFolgaId]?.date,
-                    targetDate = folgaById[swap.toFolgaId]?.date,
+                    date = folgaById[swap.fromFolgaId]?.date,
                 )
             }
-            .sortedBy { it.requesterDate ?: LocalDate(9999, 12, 31) }
+            .sortedBy { it.date ?: LocalDate(9999, 12, 31) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onDateChange(v: String) = _state.update {

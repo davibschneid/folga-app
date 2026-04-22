@@ -189,14 +189,16 @@ service cloud.firestore {
       //  - target aceita  (ACCEPTED) ou rejeita (REJECTED)
       //  - requester cancela (CANCELLED)
       //  - admin pode forçar qualquer transição (manutenção)
-      // Campos da chave (requesterId/targetId/fromFolgaId/toFolgaId) são
-      // imutáveis.
+      // Campos da chave (requesterId/targetId/fromFolgaId) são imutáveis.
+      // `toFolgaId` saiu do modelo unidirecional (o target só assume o
+      // dia do requester, sem dia de contrapartida) — a regra não valida
+      // mais esse campo. Docs antigos podem ter o valor preenchido, mas
+      // ele é ignorado pela aplicação.
       allow update: if (
         resource.data.status == 'PENDING'
         && request.resource.data.requesterId == resource.data.requesterId
         && request.resource.data.targetId == resource.data.targetId
         && request.resource.data.fromFolgaId == resource.data.fromFolgaId
-        && request.resource.data.toFolgaId == resource.data.toFolgaId
         && (
           isAdmin()
           || (
