@@ -13,6 +13,7 @@ import app.folga.ui.admin.AdminScreen
 import app.folga.ui.completarcadastro.CompletarCadastroScreen
 import app.folga.ui.folgas.FolgasScreen
 import app.folga.ui.login.LoginScreen
+import app.folga.ui.profile.ProfileScreen
 import app.folga.ui.register.RegisterScreen
 import app.folga.ui.swap.SwapsScreen
 import app.folga.ui.theme.FolgaTheme
@@ -26,6 +27,7 @@ sealed interface Screen {
     data object Folgas : Screen
     data object Swaps : Screen
     data object Admin : Screen
+    data object Profile : Screen
 }
 
 /**
@@ -85,6 +87,7 @@ private fun AppContent() {
 
         Screen.Folgas -> FolgasScreen(
             onOpenSwaps = { screen = Screen.Swaps },
+            onOpenProfile = { screen = Screen.Profile },
             onOpenAdmin = { screen = Screen.Admin }.takeIf { user?.role == UserRole.ADMIN },
         )
 
@@ -102,5 +105,7 @@ private fun AppContent() {
                 AdminScreen(onBack = { screen = Screen.Folgas })
             }
         }
+
+        Screen.Profile -> ProfileScreen(onBack = { screen = Screen.Folgas })
     }
 }
