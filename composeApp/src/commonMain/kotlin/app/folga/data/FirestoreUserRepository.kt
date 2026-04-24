@@ -23,7 +23,12 @@ class FirestoreUserRepository(
     private val users get() = firestore.collection(COLLECTION)
 
     override suspend fun upsert(user: User) {
-        users.document(user.id).set(user.toDto())
+        // `merge = true` preserva campos fora do [UserDto] — hoje é o
+        // `fcmToken` gravado pelo FcmTokenSyncer fora desse schema. Sem
+        // merge, qualquer upsert (editar perfil, completar cadastro,
+        // trocar foto) apagaria o token e deixaria a Cloud Function
+        // sem como mirar o device até o próximo reabrir do app.
+        users.document(user.id).set(user.toDto(), merge = true)
     }
 
     override suspend fun findById(id: String): User? {

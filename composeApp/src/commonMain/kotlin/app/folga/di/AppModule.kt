@@ -40,9 +40,11 @@ val appModule = module {
     single<FolgaRepository> { FirestoreFolgaRepository() }
     single<SwapRepository> { FirestoreSwapRepository() }
     single<AllowedEmailRepository> { FirestoreAllowedEmailRepository() }
-    single<AuthRepository> { FirebaseAuthRepository(get(), get()) }
     single<PhotoStorageRepository> { FirebasePhotoStorageRepository() }
     single<MessagingTokenRepository> { FirestoreMessagingTokenRepository() }
+    // AuthRepository depende de MessagingTokenRepository pra limpar o
+    // fcmToken no signOut — registrado depois pra Koin resolver a ordem.
+    single<AuthRepository> { FirebaseAuthRepository(get(), get(), get()) }
 
     factory { LoginViewModel(get(), get()) }
     factory { RegisterViewModel(get()) }
