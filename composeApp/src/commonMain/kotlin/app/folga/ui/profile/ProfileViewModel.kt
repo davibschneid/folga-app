@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -145,12 +144,17 @@ class ProfileViewModel(
 
     fun save() {
         val c = _state.value
+        // Invariante: todo caminho que seta `error` também limpa
+        // `savedMessage`. Sem isso a UI pode renderizar erro e sucesso ao
+        // mesmo tempo — cenário real: upload de foto seta
+        // `savedMessage = "Foto atualizada"` e em seguida o usuário apaga
+        // o nome e clica Salvar (flaggeado no PR #25 pelo Devin Review).
         if (c.name.isBlank()) {
-            _state.update { it.copy(error = "Preencha o nome") }
+            _state.update { it.copy(error = "Preencha o nome", savedMessage = null) }
             return
         }
         if (c.registrationNumber.isBlank() || c.team.isBlank()) {
-            _state.update { it.copy(error = "Preencha matrícula e equipe") }
+            _state.update { it.copy(error = "Preencha matrícula e equipe", savedMessage = null) }
             return
         }
         _state.update { it.copy(isSaving = true, error = null, savedMessage = null) }
@@ -172,7 +176,4 @@ class ProfileViewModel(
         }
     }
 
-    // Intentionally kept for completeness; can be removed if unused.
-    @Suppress("unused")
-    private val noOp: StateFlow<Int> = flowOf(0).stateIn(viewModelScope, SharingStarted.Lazily, 0)
 }
