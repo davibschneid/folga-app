@@ -124,10 +124,15 @@ class ProfileViewModel(
                     is AuthResult.Failure -> error(r.message)
                 }
             }.onSuccess { url ->
+                // Invariante bidirecional: error e savedMessage nunca
+                // coexistem. Aqui limpa um `error` anterior (ex.: save()
+                // falhou antes do upload terminar) pra mostrar só o
+                // "Foto atualizada".
                 _state.update {
                     it.copy(
                         isUploadingPhoto = false,
                         photoUrl = url,
+                        error = null,
                         savedMessage = "Foto atualizada",
                     )
                 }
@@ -171,7 +176,14 @@ class ProfileViewModel(
             )
             when (result) {
                 is AuthResult.Success -> _state.update {
-                    it.copy(isSaving = false, savedMessage = "Perfil atualizado")
+                    // Invariante bidirecional: limpa `error` anterior
+                    // (ex.: pickPhoto falhou enquanto o save rodava) pra
+                    // não pintar erro + sucesso ao mesmo tempo.
+                    it.copy(
+                        isSaving = false,
+                        error = null,
+                        savedMessage = "Perfil atualizado",
+                    )
                 }
                 is AuthResult.Failure -> _state.update {
                     // Mesma invariante: erro nunca coexiste com
