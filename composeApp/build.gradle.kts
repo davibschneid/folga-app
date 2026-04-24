@@ -49,6 +49,13 @@ kotlin {
             // Coil 2.x Android-only — carrega fotos remotas (Firebase
             // Storage) via AsyncImage no actual do RemoteImage.
             implementation(libs.coil.compose)
+
+            // Firebase Cloud Messaging (push notifications). O GitLive
+            // Firebase SDK não cobre messaging, então usamos a SDK
+            // oficial do Google. O BOM alinha a versão do messaging
+            // com o resto da família Firebase já trazida via transitive.
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.messaging)
         }
 
         commonMain.dependencies {

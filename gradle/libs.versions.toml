@@ -15,6 +15,7 @@ kotlinx-serialization = "1.7.3"
 koin = "4.0.0"
 
 firebase-kotlin-sdk = "2.1.0"
+firebase-bom = "33.5.1"
 google-services = "4.4.2"
 
 coil = "2.7.0"
@@ -46,6 +47,12 @@ firebase-auth = { group = "dev.gitlive", name = "firebase-auth", version.ref = "
 firebase-firestore = { group = "dev.gitlive", name = "firebase-firestore", version.ref = "firebase-kotlin-sdk" }
 firebase-common = { group = "dev.gitlive", name = "firebase-common", version.ref = "firebase-kotlin-sdk" }
 firebase-storage = { group = "dev.gitlive", name = "firebase-storage", version.ref = "firebase-kotlin-sdk" }
+
+# BOM oficial do Firebase pra Android — usado pra alinhar a versão de
+# `firebase-messaging` (que o GitLive SDK não cobre). O GitLive SDK 2.1.0
+# já depende do BOM 33.x via transitive, então o alinhamento é seguro.
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
 
 # Coil (Android) — carregamento de imagens remotas (foto de perfil vinda
 # do Firebase Storage). Mantido só no androidMain; no iOS o actual da

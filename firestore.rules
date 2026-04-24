@@ -92,9 +92,16 @@ service cloud.firestore {
       // Update:
       //  - admin pode alterar qualquer coisa;
       //  - próprio usuário pode alterar campos editáveis (name, registrationNumber,
-      //    team, shift) mas NÃO id/email/createdAt e só troca o `role` se
-      //    for bootstrap admin se autopromovendo de USER → ADMIN (caminho
-      //    do `repairBootstrapRole` em FirebaseAuthRepository).
+      //    team, shift, photoUrl, fcmToken) mas NÃO id/email/createdAt e só
+      //    troca o `role` se for bootstrap admin se autopromovendo de
+      //    USER → ADMIN (caminho do `repairBootstrapRole` em
+      //    FirebaseAuthRepository).
+      //
+      // O campo `fcmToken` é gravado pelo FcmTokenSyncer toda vez que
+      // o usuário abre o app logado — precisa entrar nessa cláusula
+      // pra não bater PERMISSION_DENIED. Como é específico do device,
+      // não tem implicação de segurança em deixar o próprio usuário
+      // sobrescrever.
       allow update: if isAdmin() || (
         isSelf(uid)
         && request.resource.data.id == resource.data.id

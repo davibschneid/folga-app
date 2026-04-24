@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permissão exigida a partir do Android 13 (API 33) pra mostrar
+         qualquer notificação. Em SDK <= 32 é concedida automaticamente.
+         O app não pede em runtime ainda — quem quiser receber push tem
+         que aceitar o prompt do sistema na primeira vez OU habilitar
+         em Configurações > Notificações. TODO: pedir runtime no
+         primeiro login pós-onboarding. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".FolgaApplication"
@@ -20,6 +27,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Serviço do FCM: roteia tokens novos e mensagens recebidas pra
+             FolgaMessagingService. `exported=false` porque ninguém de
+             fora do app deve invocar; o sistema entrega via intent
+             interno do Firebase Messaging. -->
+        <service
+            android:name=".FolgaMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Canal default que o FCM usa quando o servidor manda
+             notificação sem `android_channel_id`. Apontamos pro nosso
+             canal de "Solicitações de troca" pra que a notificação
+             apareça com a categoria certa. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="swap_requests" />
     </application>
 
 </manifest>

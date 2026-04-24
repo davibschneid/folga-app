@@ -4,11 +4,13 @@ import app.folga.data.FirebaseAuthRepository
 import app.folga.data.FirebasePhotoStorageRepository
 import app.folga.data.FirestoreAllowedEmailRepository
 import app.folga.data.FirestoreFolgaRepository
+import app.folga.data.FirestoreMessagingTokenRepository
 import app.folga.data.FirestoreSwapRepository
 import app.folga.data.FirestoreUserRepository
 import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.FolgaRepository
+import app.folga.domain.MessagingTokenRepository
 import app.folga.domain.PhotoStorageRepository
 import app.folga.domain.SwapRepository
 import app.folga.domain.UserRepository
@@ -40,6 +42,7 @@ val appModule = module {
     single<AllowedEmailRepository> { FirestoreAllowedEmailRepository() }
     single<AuthRepository> { FirebaseAuthRepository(get(), get()) }
     single<PhotoStorageRepository> { FirebasePhotoStorageRepository() }
+    single<MessagingTokenRepository> { FirestoreMessagingTokenRepository() }
 
     factory { LoginViewModel(get(), get()) }
     factory { RegisterViewModel(get()) }
