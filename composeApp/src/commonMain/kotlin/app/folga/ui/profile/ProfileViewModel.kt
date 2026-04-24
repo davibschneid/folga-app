@@ -151,6 +151,15 @@ class ProfileViewModel(
         }
     }
 
+    /**
+     * Desloga o usuário. O `App.kt` observa `authRepository.currentUser`
+     * — quando volta a null, a navegação cai automaticamente pra tela
+     * de Login. Não precisa propagar callback de "fui deslogado" pra UI.
+     */
+    fun signOut() {
+        viewModelScope.launch { authRepository.signOut() }
+    }
+
     fun save() {
         val c = _state.value
         // Invariante: todo caminho que seta `error` também limpa

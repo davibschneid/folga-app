@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -187,6 +188,7 @@ fun ProfileScreen(
             ShortcutsSection(
                 onOpenReports = onOpenReports,
                 onOpenAdmin = onOpenAdmin,
+                onLogout = viewModel::signOut,
             )
             Spacer(Modifier.height(24.dp))
         }
@@ -244,6 +246,7 @@ private fun AvatarBlock(
 private fun ShortcutsSection(
     onOpenReports: () -> Unit,
     onOpenAdmin: (() -> Unit)?,
+    onLogout: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -264,6 +267,17 @@ private fun ShortcutsSection(
                     onClick = onOpenAdmin,
                 )
             }
+            HorizontalDivider()
+            // Sair: ProfileViewModel.signOut() chama AuthRepository.signOut()
+            // que zera authRepository.currentUser. App.kt observa esse fluxo
+            // e cai pra tela de Login automaticamente — sem precisar de
+            // callback de navegação aqui.
+            ShortcutRow(
+                icon = Icons.AutoMirrored.Filled.Logout,
+                label = "Sair",
+                onClick = onLogout,
+                tint = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -273,7 +287,9 @@ private fun ShortcutRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
+    tint: Color = Color.Unspecified,
 ) {
+    val resolvedTint = if (tint == Color.Unspecified) MaterialTheme.colorScheme.primary else tint
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -284,12 +300,13 @@ private fun ShortcutRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = resolvedTint,
         )
         Spacer(Modifier.size(16.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
+            color = resolvedTint,
         )
     }
 }
