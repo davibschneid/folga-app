@@ -118,11 +118,18 @@ service cloud.firestore {
     // ---- allowed_emails ---------------------------------------------------
 
     match /allowed_emails/{emailId} {
-      // GET individual liberado para qualquer autenticado — o gate de
-      // login faz `collection.document(email).get()` pra checar se o
-      // próprio e-mail está liberado. LIST é restrito a admin (tela de
-      // Administração).
-      allow get: if isSignedIn();
+      // GET individual liberado para QUALQUER um (até não autenticado) —
+      // o gate de cadastro (`FirebaseAuthRepository.checkEmailAllowed`)
+      // roda ANTES de `createUserWithEmailAndPassword` para não deixar
+      // conta órfã no Firebase Auth quando o e-mail não está liberado.
+      // Nesse momento `request.auth` é null, então exigir `isSignedIn()`
+      // quebrava todo novo cadastro com PERMISSION_DENIED.
+      //
+      // Impacto: qualquer um pode probar se um e-mail específico está
+      // liberado via `doc(email).get()`. Aceitável porque (a) não expõe
+      // nenhum dado pessoal — só existência do e-mail na whitelist — e
+      // (b) `list` continua bloqueado, então ninguém enumera a lista.
+      allow get: if true;
       allow list: if isAdmin();
 
       // Apenas admin gerencia a whitelist.
