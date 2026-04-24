@@ -4,6 +4,7 @@ import app.folga.domain.AdminBootstrap
 import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
+import app.folga.domain.MessagingTokenRepository
 import app.folga.domain.Shift
 import app.folga.domain.User
 import app.folga.domain.UserRepository
@@ -33,6 +34,7 @@ import kotlinx.datetime.Clock
 class FirebaseAuthRepository(
     private val userRepository: UserRepository,
     private val allowedEmailRepository: AllowedEmailRepository,
+    private val messagingTokenRepository: MessagingTokenRepository,
     private val auth: FirebaseAuth = Firebase.auth,
 ) : AuthRepository {
 
@@ -317,6 +319,19 @@ class FirebaseAuthRepository(
     }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar foto de perfil") }
 
     override suspend fun signOut() {
+        // Limpa o `fcmToken` do doc do usuário ANTES de fazer signOut
+        // no Firebase Auth. Ordem importa: depois do signOut, a regra
+        // do Firestore (`isSelf(uid)`) nega o update porque
+        // `request.auth` vira nulo. Sem esse clear, o token do device
+        // continua apontando pra conta deslogada — se outro usuário
+        // entrar no mesmo aparelho, a Cloud Function ainda vai mandar
+        // pushes do ex-usuário pra cá (vazamento de notificação entre
+        // contas). runCatching pra não bloquear logout se a escrita
+        // falhar (rede/permissão).
+        val uid = auth.currentUser?.uid
+        if (uid != null) {
+            runCatching { messagingTokenRepository.clearToken(uid) }
+        }
         runCatching { auth.signOut() }
         manualUser.value = null
     }
