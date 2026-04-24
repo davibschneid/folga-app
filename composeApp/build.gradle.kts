@@ -46,6 +46,9 @@ kotlin {
             implementation(libs.androidx.credentials)
             implementation(libs.androidx.credentials.play.services.auth)
             implementation(libs.googleid)
+            // Coil 2.x Android-only — carrega fotos remotas (Firebase
+            // Storage) via AsyncImage no actual do RemoteImage.
+            implementation(libs.coil.compose)
         }
 
         commonMain.dependencies {
@@ -68,6 +71,7 @@ kotlin {
 
             implementation(libs.firebase.auth)
             implementation(libs.firebase.firestore)
+            implementation(libs.firebase.storage)
         }
 
         commonTest.dependencies {

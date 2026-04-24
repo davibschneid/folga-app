@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.folga.domain.AuthRepository
 import app.folga.domain.Folga
 import app.folga.domain.FolgaRepository
+import app.folga.domain.Shift
 import app.folga.domain.SwapRepository
 import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,7 +44,11 @@ data class ScheduledSwap(
     val id: String,
     val status: SwapStatus,
     val requesterName: String,
+    val requesterPhotoUrl: String?,
+    val requesterShift: Shift?,
     val targetName: String,
+    val targetPhotoUrl: String?,
+    val targetShift: Shift?,
     val date: LocalDate?,
 )
 
@@ -116,16 +122,32 @@ class FolgasViewModel(
         merged
             .filter { it.status == SwapStatus.PENDING || it.status == SwapStatus.ACCEPTED }
             .map { swap ->
+                val requester = userById[swap.requesterId]
+                val target = userById[swap.targetId]
                 ScheduledSwap(
                     id = swap.id,
                     status = swap.status,
-                    requesterName = userById[swap.requesterId]?.name ?: swap.requesterId,
-                    targetName = userById[swap.targetId]?.name ?: swap.targetId,
+                    requesterName = requester?.name ?: swap.requesterId,
+                    requesterPhotoUrl = requester?.photoUrl,
+                    requesterShift = requester?.shift,
+                    targetName = target?.name ?: swap.targetId,
+                    targetPhotoUrl = target?.photoUrl,
+                    targetShift = target?.shift,
                     date = folgaById[swap.fromFolgaId]?.date,
                 )
             }
             .sortedBy { it.date ?: LocalDate(9999, 12, 31) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Contagem de trocas recebidas em status `PENDING` — alimenta o badge
+     * do sino no header da Home e da aba "Trocas" na barra inferior.
+     * Derivado do mesmo `incoming` que já é observado pela tela de Trocas,
+     * então não adiciona listener extra no Firestore.
+     */
+    val pendingIncomingCount: StateFlow<Int> = incoming
+        .map { list -> list.count { it.status == SwapStatus.PENDING } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     fun onDateChange(v: String) = _state.update {
         it.copy(newFolgaDate = v, error = null, successMessage = null)

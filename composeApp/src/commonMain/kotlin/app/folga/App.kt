@@ -66,8 +66,6 @@ private fun AppContent() {
         screen = Screen.Login
     }
     if (loggedIn && !profileComplete) {
-        // Força o usuário a completar o cadastro antes de entrar no app,
-        // independente de onde ele estava (Login/Register/Folgas/Swaps).
         screen = Screen.CompletarCadastro
     }
     if (loggedIn && profileComplete &&
@@ -87,33 +85,38 @@ private fun AppContent() {
 
         Screen.CompletarCadastro -> CompletarCadastroScreen()
 
+        // Home: com o redesign, a Home usa header azul + bottom bar
+        // (Home/Trocas/Perfil). Admin e Relatório saíram da TopAppBar
+        // e viraram itens dentro do Perfil — fluxos menos frequentes,
+        // melhor ficarem num menu estável.
         Screen.Folgas -> FolgasScreen(
             onOpenSwaps = { screen = Screen.Swaps },
             onOpenProfile = { screen = Screen.Profile },
-            onOpenAdmin = { screen = Screen.Admin }.takeIf { user?.role == UserRole.ADMIN },
-            // Relatório de dias trabalhados é visível pra todo mundo; o
-            // ViewModel recorta a view: ADMIN vê todos os colaboradores,
-            // USER só vê a própria linha.
-            onOpenReports = { screen = Screen.Reports },
         )
 
         Screen.Swaps -> SwapsScreen(
             onBack = { screen = Screen.Folgas },
+            onOpenProfile = { screen = Screen.Profile },
         )
 
         Screen.Admin -> {
-            // Acesso direto via estado — mas se o usuário perdeu role de
-            // admin (ex.: outro admin o despromoveu enquanto estava na
-            // tela), manda pra FolgasScreen.
+            // Se o usuário perdeu role de admin enquanto estava aqui,
+            // devolve pra Home.
             if (user?.role != UserRole.ADMIN) {
                 screen = Screen.Folgas
             } else {
-                AdminScreen(onBack = { screen = Screen.Folgas })
+                AdminScreen(onBack = { screen = Screen.Profile })
             }
         }
 
-        Screen.Profile -> ProfileScreen(onBack = { screen = Screen.Folgas })
+        Screen.Profile -> ProfileScreen(
+            onBack = { screen = Screen.Folgas },
+            onOpenSwaps = { screen = Screen.Swaps },
+            onOpenReports = { screen = Screen.Reports },
+            onOpenAdmin = { screen = Screen.Admin }
+                .takeIf { user?.role == UserRole.ADMIN },
+        )
 
-        Screen.Reports -> ReportsScreen(onBack = { screen = Screen.Folgas })
+        Screen.Reports -> ReportsScreen(onBack = { screen = Screen.Profile })
     }
 }
