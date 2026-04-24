@@ -185,3 +185,92 @@ Promote release → Closed testing / Open testing / Production**.
   `SerializationException` → R8 removeu alguma classe. Adicione um
   `-keep` em <ref_file file="/home/ubuntu/repos/folga-app/composeApp/proguard-rules.pro" />
   apontando pro pacote que falhou, e rebuilde.
+
+---
+
+# Deploy — Cloud Functions (push notifications via FCM)
+
+A função `onSwapCreated` em `functions/index.js` dispara um push pra
+`users/{targetId}.fcmToken` toda vez que um doc é criado em `swaps/{id}`.
+Pra ela rodar, o projeto Firebase precisa estar no **plano Blaze**
+(pay-as-you-go) — Cloud Functions 2nd gen não roda no Spark.
+
+## 1. Habilitar Blaze (uma vez por projeto)
+
+1. https://console.firebase.google.com/project/appfolgaandroid/usage/details
+2. Botão **Modify plan** → **Blaze (Pay as you go)** → confirma método de pagamento.
+3. Defina um **budget alert** (ex.: US$ 5/mês) pra ser avisado se algo dispara.
+
+> O Blaze tem um *free tier* mensal generoso (2M invocations + 400k GB-s pra
+> Functions; 1M FCM messages). Pro nosso uso (push em troca) o custo
+> esperado é **US$ 0,00** por mês, mas o budget alert evita surpresa.
+
+## 2. Instalar o Firebase CLI (uma vez por máquina)
+
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+## 3. Instalar deps das Functions
+
+Na raiz do repo:
+
+```bash
+cd functions
+npm install
+cd ..
+```
+
+## 4. Deploy
+
+```bash
+firebase deploy --only functions
+```
+
+A primeira vez demora uns 2 minutos (cria o Cloud Build, IAM, etc.).
+Saída esperada:
+
+```
+✔  functions[onSwapCreated(us-central1)] Successful create operation.
+Function URL (onSwapCreated): https://...
+```
+
+Depois disso, todo doc novo em `swaps/{id}` dispara push pra quem está
+em `targetId.fcmToken`.
+
+## 5. Logs em tempo real
+
+```bash
+firebase functions:log
+# ou: cd functions && npm run logs
+```
+
+## 6. Testar localmente (opcional)
+
+Os emuladores do Firebase rodam Functions + Firestore num sandbox local —
+útil pra mexer no código sem mandar pro projeto real:
+
+```bash
+cd functions
+npm run serve  # firebase emulators:start --only functions,firestore
+```
+
+Em outro terminal, escreva um doc em `swaps/{id}` no emulador (UI em
+http://localhost:4000) e olhe os logs.
+
+## 7. Troubleshooting
+
+- **`Cloud Functions has been disabled`** → o projeto ainda não é Blaze.
+  Volta no passo 1.
+- **`Permission denied on resource project ...`** → sua conta no
+  `firebase login` não tem o papel `Editor` ou `Cloud Functions Admin`.
+  Peça pra um Owner do projeto te promover (ou use uma conta Owner).
+- **Push não chega no celular** → cheque, em ordem:
+  1. `firebase functions:log` mostra o evento? Se não, veja se a regra
+     do Firestore deixou a função criar swap.
+  2. Logs mostram `Target X sem fcmToken`? O app ainda não sincronizou
+     o token — abra o app logado pelo menos uma vez no celular alvo.
+  3. Logs mostram `Push enviado pro target X`? Se sim, o problema é no
+     dispositivo: cheque permissão de notificação em
+     **Configurações → Apps → Easy Folgas → Notificações**.
