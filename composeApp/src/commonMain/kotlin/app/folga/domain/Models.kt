@@ -19,6 +19,14 @@ data class User(
      * ou manualmente por outro admin na tela de Administração.
      */
     val role: UserRole = UserRole.USER,
+    /**
+     * URL pública de download da foto de perfil no Firebase Storage.
+     * `null` quando o usuário ainda não subiu foto — a UI cai pro
+     * fallback de iniciais (`ProfileAvatar`). O upload é feito pelo
+     * [PhotoStorageRepository] e a URL é persistida no doc do usuário
+     * via [AuthRepository.updatePhotoUrl].
+     */
+    val photoUrl: String? = null,
     val createdAt: Instant,
 )
 

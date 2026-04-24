@@ -12,15 +12,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,11 +41,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.folga.domain.Folga
 import app.folga.domain.FolgaStatus
-import app.folga.domain.SwapStatus
+import app.folga.ui.common.AppBottomBar
+import app.folga.ui.common.HomeHeader
+import app.folga.ui.common.MainTab
+import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.formatBrazilian
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -55,144 +58,112 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * Tela inicial — "Registrar Dia de Trabalho" + lista de trocas agendadas
+ * + dias cadastrados que o usuário ainda pode cancelar.
+ *
+ * O design segue o mock enviado pelo cliente: header azul com
+ * saudação/equipe/sino no topo, conteúdo rolável no meio, e barra
+ * inferior com abas Home/Trocas/Perfil. A entrada pra tela de Admin
+ * mudou pra dentro do Perfil — fora da home pra liberar espaço e
+ * porque Admin é ação pouco frequente.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolgasScreen(
     onOpenSwaps: () -> Unit,
     onOpenProfile: () -> Unit,
-    // Nullo quando o usuário logado não é admin — a TopAppBar esconde o
-    // botão de Admin nesse caso. Manter null (ao invés de um lambda vazio)
-    // garante que a UI não mostre um botão "morto".
-    onOpenAdmin: (() -> Unit)? = null,
-    onOpenReports: () -> Unit,
     viewModel: FolgasViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
     val scheduledSwaps by viewModel.scheduledSwaps.collectAsStateWithLifecycle()
+    val pendingCount by viewModel.pendingIncomingCount.collectAsStateWithLifecycle()
     val folgas by viewModel.folgas.collectAsStateWithLifecycle()
-    // Só mostra os dias que o usuário ainda pode cancelar. CANCELLED e
-    // SWAPPED não fazem sentido listar aqui (já saíram do calendário de
-    // compromissos do usuário) e também não teriam botão de ação.
     val myScheduled = folgas.filter { it.status == FolgaStatus.SCHEDULED }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Meus dias de trabalho") },
-                // Com 4 ações possíveis (Admin, Perfil, Relatório, Trocas),
-                // usar OutlinedButton com texto estourava a largura da
-                // TopAppBar em telas Android típicas (~360dp). Troquei pra
-                // IconButton com ícone + contentDescription pra acessibilidade.
-                actions = {
-                    if (onOpenAdmin != null) {
-                        IconButton(onClick = onOpenAdmin) {
-                            Icon(
-                                Icons.Filled.AdminPanelSettings,
-                                contentDescription = "Admin",
-                            )
-                        }
-                    }
-                    IconButton(onClick = onOpenReports) {
-                        Icon(
-                            Icons.Filled.Assessment,
-                            contentDescription = "Relatório",
-                        )
-                    }
-                    IconButton(onClick = onOpenSwaps) {
-                        Icon(
-                            Icons.Filled.SwapHoriz,
-                            contentDescription = "Trocas",
-                        )
-                    }
-                    IconButton(onClick = onOpenProfile) {
-                        Icon(
-                            Icons.Filled.Person,
-                            contentDescription = "Perfil",
-                        )
-                    }
-                },
+            HomeHeader(
+                userName = me?.name.orEmpty(),
+                userTeam = me?.team.orEmpty(),
+                userPhotoUrl = me?.photoUrl,
+                pendingSwapsCount = pendingCount,
+                onOpenProfile = onOpenProfile,
+                // Sino leva pra tela de Trocas (onde as recebidas ficam
+                // listadas). Mais direto pro caso de uso principal do
+                // sino: "ver quem me pediu troca".
+                onOpenNotifications = onOpenSwaps,
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                selected = MainTab.HOME,
+                pendingSwapsCount = pendingCount,
+                onSelectHome = {},
+                onSelectSwaps = onOpenSwaps,
+                onSelectProfile = onOpenProfile,
             )
         },
     ) { padding ->
         Column(
-            // `verticalScroll` envolve tudo pra permitir duas listas
-            // (trocas agendadas + dias cadastrados) sem conflito entre
-            // dois LazyColumns aninhados — que quebraria com
-            // "infinite height constraints". Folga list tende a ser
-            // pequena (< dezenas), virtualização não é crítica.
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text(
-                text = me?.let { "Olá, ${it.name} — ${it.team}" } ?: "Sem usuário",
-                style = MaterialTheme.typography.titleMedium,
-            )
             Spacer(Modifier.height(16.dp))
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Cadastrar dia de trabalho", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
-                    FolgaDatePickerField(
-                        selected = state.newFolgaDate,
-                        onPick = viewModel::onDateChange,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = state.newFolgaNote,
-                        onValueChange = viewModel::onNoteChange,
-                        label = { Text("Observação (opcional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (state.error != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = state.error!!,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    if (state.successMessage != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = state.successMessage!!,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = viewModel::reserve,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading,
-                    ) {
-                        if (state.isLoading) CircularProgressIndicator() else Text("Cadastrar")
-                    }
-                }
-            }
+            RegistrarDiaCard(
+                date = state.newFolgaDate,
+                note = state.newFolgaNote,
+                error = state.error,
+                success = state.successMessage,
+                isLoading = state.isLoading,
+                onDateChange = viewModel::onDateChange,
+                onNoteChange = viewModel::onNoteChange,
+                onSubmit = viewModel::reserve,
+            )
             Spacer(Modifier.height(24.dp))
-            Text("Trocas agendadas", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Trocas Agendadas",
+                style = MaterialTheme.typography.titleLarge,
+            )
             Spacer(Modifier.height(8.dp))
             if (scheduledSwaps.isEmpty()) {
                 Text(
                     "Nenhuma troca agendada.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     scheduledSwaps.forEach { swap ->
-                        ScheduledSwapRow(swap = swap)
+                        ShiftSwapCard(
+                            requesterName = swap.requesterName,
+                            requesterPhotoUrl = swap.requesterPhotoUrl,
+                            requesterShift = swap.requesterShift,
+                            targetName = swap.targetName,
+                            targetPhotoUrl = swap.targetPhotoUrl,
+                            targetShift = swap.targetShift,
+                            date = swap.date,
+                            status = swap.status,
+                        )
                     }
                 }
             }
 
             Spacer(Modifier.height(24.dp))
-            Text("Meus dias cadastrados", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Meus dias cadastrados",
+                style = MaterialTheme.typography.titleLarge,
+            )
             Spacer(Modifier.height(8.dp))
             if (myScheduled.isEmpty()) {
                 Text(
                     "Nenhum dia cadastrado.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -201,53 +172,103 @@ fun FolgasScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 /**
- * Linha exibindo uma troca agendada unidirecional: o [requesterName]
- * cadastrou a [date] e o [targetName] vai trabalhar por ele nesse dia.
- * No modelo unidirecional só existe uma data (o dia sendo transferido).
+ * Card branco de "Registrar Dia de Trabalho" com Data + Notas + botão
+ * principal azul (espelha o mock). Mantém as mensagens de erro/sucesso
+ * inline logo abaixo do formulário.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScheduledSwapRow(swap: ScheduledSwap) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
+private fun RegistrarDiaCard(
+    date: String,
+    note: String,
+    error: String?,
+    success: String?,
+    isLoading: Boolean,
+    onDateChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "${swap.requesterName} → ${swap.targetName}",
-                style = MaterialTheme.typography.titleMedium,
+                text = "Registrar Dia de Trabalho",
+                style = MaterialTheme.typography.titleLarge,
             )
-            Spacer(Modifier.height(4.dp))
-            val day = swap.date?.formatBrazilian() ?: "—"
+            Spacer(Modifier.height(12.dp))
+            FolgaDatePickerField(selected = date, onPick = onDateChange)
             Text(
-                text = "${swap.targetName} trabalha em $day no lugar de ${swap.requesterName}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = statusLabel(swap.status),
+                text = "DD/MM/AAAA",
                 style = MaterialTheme.typography.bodySmall,
-                color = when (swap.status) {
-                    SwapStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
-                    SwapStatus.PENDING -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp),
             )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = note,
+                onValueChange = onNoteChange,
+                label = { Text("Notas") },
+                placeholder = { Text("Adicionar observações sobre o turno...") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(error, color = MaterialTheme.colorScheme.error)
+            }
+            if (success != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(success, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1E3A8A),
+                    contentColor = Color.White,
+                ),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.EventAvailable,
+                        contentDescription = null,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("REGISTRAR TURNO")
+                }
+            }
         }
     }
 }
 
 /**
- * Linha exibindo um dia cadastrado pelo próprio usuário, com botão
- * Cancelar. Só aparece para `FolgaStatus.SCHEDULED` — a filtragem é
- * feita pela tela antes de renderizar.
+ * Linha dos dias cadastrados pelo próprio usuário com botão Cancelar.
  */
 @Composable
 private fun MyFolgaRow(folga: Folga, onCancel: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -272,13 +293,6 @@ private fun MyFolgaRow(folga: Folga, onCancel: () -> Unit) {
     }
 }
 
-private fun statusLabel(status: SwapStatus): String = when (status) {
-    SwapStatus.PENDING -> "Aguardando resposta"
-    SwapStatus.ACCEPTED -> "Confirmada"
-    SwapStatus.REJECTED -> "Recusada"
-    SwapStatus.CANCELLED -> "Cancelada"
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FolgaDatePickerField(
@@ -287,8 +301,6 @@ private fun FolgaDatePickerField(
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val display = remember(selected) {
-        // `selected` is stored in ISO (AAAA-MM-DD) by the ViewModel so the
-        // repository layer stays locale-agnostic; we only format on display.
         runCatching { LocalDate.parse(selected).formatBrazilian() }.getOrNull() ?: ""
     }
 
@@ -297,7 +309,7 @@ private fun FolgaDatePickerField(
             value = display,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Data (DD/MM/AAAA)") },
+            label = { Text("Data") },
             trailingIcon = {
                 IconButton(onClick = { showDialog = true }) {
                     Icon(Icons.Filled.DateRange, contentDescription = "Escolher data")
@@ -305,8 +317,6 @@ private fun FolgaDatePickerField(
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        // Transparent overlay so tapping anywhere on the field opens the
-        // picker — readOnly fields don't forward the click on their own.
         Box(
             Modifier
                 .matchParentSize()

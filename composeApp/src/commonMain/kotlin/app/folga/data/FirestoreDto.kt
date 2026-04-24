@@ -34,6 +34,10 @@ internal data class UserDto(
     // princípio do menor privilégio: se um doc perdeu o campo, o usuário
     // vira um usuário comum até ser repromovido.
     val role: String? = null,
+    // URL pública da foto de perfil (Firebase Storage). Nullable +
+    // default pra manter retrocompatibilidade com docs criados antes
+    // do PR que introduziu foto.
+    val photoUrl: String? = null,
     val createdAt: Long = 0L,
 )
 
@@ -79,6 +83,7 @@ internal fun User.toDto(): UserDto = UserDto(
     team = team,
     shift = shift.name,
     role = role.name,
+    photoUrl = photoUrl,
     createdAt = createdAt.toEpochMilliseconds(),
 )
 
@@ -90,6 +95,7 @@ internal fun UserDto.toDomain(): User = User(
     team = team,
     shift = Shift.fromString(shift),
     role = UserRole.fromString(role),
+    photoUrl = photoUrl,
     createdAt = Instant.fromEpochMilliseconds(createdAt),
 )
 

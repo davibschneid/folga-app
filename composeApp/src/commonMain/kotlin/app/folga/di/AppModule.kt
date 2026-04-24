@@ -1,6 +1,7 @@
 package app.folga.di
 
 import app.folga.data.FirebaseAuthRepository
+import app.folga.data.FirebasePhotoStorageRepository
 import app.folga.data.FirestoreAllowedEmailRepository
 import app.folga.data.FirestoreFolgaRepository
 import app.folga.data.FirestoreSwapRepository
@@ -8,6 +9,7 @@ import app.folga.data.FirestoreUserRepository
 import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.FolgaRepository
+import app.folga.domain.PhotoStorageRepository
 import app.folga.domain.SwapRepository
 import app.folga.domain.UserRepository
 import app.folga.ui.admin.AdminViewModel
@@ -37,6 +39,7 @@ val appModule = module {
     single<SwapRepository> { FirestoreSwapRepository() }
     single<AllowedEmailRepository> { FirestoreAllowedEmailRepository() }
     single<AuthRepository> { FirebaseAuthRepository(get(), get()) }
+    single<PhotoStorageRepository> { FirebasePhotoStorageRepository() }
 
     factory { LoginViewModel(get(), get()) }
     factory { RegisterViewModel(get()) }
@@ -44,6 +47,6 @@ val appModule = module {
     factory { FolgasViewModel(get(), get(), get(), get()) }
     factory { SwapsViewModel(get(), get(), get(), get()) }
     factory { AdminViewModel(get(), get(), get()) }
-    factory { ProfileViewModel(get()) }
+    factory { ProfileViewModel(get(), get(), get()) }
     factory { ReportsViewModel(get(), get(), get(), get()) }
 }

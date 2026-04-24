@@ -1,49 +1,73 @@
 package app.folga.ui.profile
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.folga.ui.common.AppBottomBar
+import app.folga.ui.common.MainTab
+import app.folga.ui.common.ProfileAvatar
 import app.folga.ui.common.ShiftDropdown
+import app.folga.ui.common.rememberImagePicker
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Tela de edição de perfil. Usuário pode alterar nome, matrícula, equipe
- * e turno. E-mail aparece desabilitado (imutável pelo Firebase Auth).
- * Role não aparece por design — a gestão de roles é exclusiva da tela
- * de Administração.
+ * Tela de Perfil redesenhada:
+ * - Header com avatar grande + botão "alterar foto" (abre picker nativo
+ *   e faz upload pro Firebase Storage via [ProfileViewModel.pickPhoto]).
+ * - Form de edição (nome, matrícula, equipe, turno) — email read-only.
+ * - Lista de atalhos: Relatório sempre; Administração só pra ADMIN.
+ * - Bottom bar pra voltar pra Home/Trocas sem precisar do botão "Voltar".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
+    onOpenSwaps: () -> Unit,
+    onOpenReports: () -> Unit,
+    onOpenAdmin: (() -> Unit)? = null,
     viewModel: ProfileViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val launchPicker = rememberImagePicker(onPicked = viewModel::pickPhoto)
 
     Scaffold(
         topBar = {
@@ -57,6 +81,20 @@ fun ProfileScreen(
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1E3A8A),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                ),
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                selected = MainTab.PROFILE,
+                pendingSwapsCount = state.pendingSwapsCount,
+                onSelectHome = onBack,
+                onSelectSwaps = onOpenSwaps,
+                onSelectProfile = {},
             )
         },
     ) { padding ->
@@ -71,10 +109,19 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp)
+                .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Spacer(Modifier.height(24.dp))
+            AvatarBlock(
+                name = state.name,
+                photoUrl = state.photoUrl,
+                isUploading = state.isUploadingPhoto,
+                onChangePhoto = launchPicker,
+            )
+            Spacer(Modifier.height(24.dp))
             OutlinedTextField(
                 value = state.email,
                 onValueChange = {},
@@ -128,7 +175,7 @@ fun ProfileScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Button(
                 onClick = viewModel::save,
                 modifier = Modifier.fillMaxWidth(),
@@ -136,6 +183,113 @@ fun ProfileScreen(
             ) {
                 if (state.isSaving) CircularProgressIndicator() else Text("Salvar")
             }
+            Spacer(Modifier.height(24.dp))
+            ShortcutsSection(
+                onOpenReports = onOpenReports,
+                onOpenAdmin = onOpenAdmin,
+            )
+            Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun AvatarBlock(
+    name: String,
+    photoUrl: String?,
+    isUploading: Boolean,
+    onChangePhoto: () -> Unit,
+) {
+    Box(contentAlignment = Alignment.BottomEnd) {
+        ProfileAvatar(
+            name = name,
+            photoUrl = photoUrl,
+            size = 120.dp,
+        )
+        // Botão flutuante de câmera ancorado no canto inferior-direito
+        // do avatar. Durante o upload vira um spinner — evita cliques
+        // múltiplos enquanto os bytes estão sendo enviados pro Storage.
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .padding(4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isUploading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    strokeWidth = 3.dp,
+                )
+            } else {
+                IconButton(
+                    onClick = onChangePhoto,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = "Alterar foto",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(onClick = onChangePhoto, enabled = !isUploading) {
+        Text(if (photoUrl.isNullOrBlank()) "Adicionar foto" else "Trocar foto")
+    }
+}
+
+@Composable
+private fun ShortcutsSection(
+    onOpenReports: () -> Unit,
+    onOpenAdmin: (() -> Unit)?,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column {
+            ShortcutRow(
+                icon = Icons.Filled.Assessment,
+                label = "Relatório de dias trabalhados",
+                onClick = onOpenReports,
+            )
+            if (onOpenAdmin != null) {
+                HorizontalDivider()
+                ShortcutRow(
+                    icon = Icons.Filled.AdminPanelSettings,
+                    label = "Administração",
+                    onClick = onOpenAdmin,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShortcutRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.size(16.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+        )
     }
 }

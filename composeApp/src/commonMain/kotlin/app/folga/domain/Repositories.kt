@@ -111,5 +111,29 @@ interface AuthRepository {
         shift: Shift,
     ): AuthResult
 
+    /**
+     * Atualiza apenas a URL da foto de perfil do usuário logado. A URL
+     * vem do [PhotoStorageRepository.upload] depois do upload bem-sucedido
+     * pro Firebase Storage. Separado do [updateProfile] porque a foto é
+     * alterada por um fluxo diferente (image picker + upload) e acontece
+     * independente da edição dos outros campos.
+     */
+    suspend fun updatePhotoUrl(url: String?): AuthResult
+
     suspend fun signOut()
+}
+
+/**
+ * Upload de foto de perfil pro Firebase Storage. Recebe os bytes da
+ * imagem selecionada pelo usuário (picker nativo de cada plataforma) e
+ * devolve a URL pública de download que depois é persistida no doc do
+ * usuário via [AuthRepository.updatePhotoUrl].
+ *
+ * Camada de persistência: `profile_photos/{uid}.jpg` no bucket default
+ * do projeto. As regras do Storage precisam permitir leitura pública
+ * e escrita só pelo próprio usuário autenticado — a URL retornada já
+ * contém o token do Storage para acesso público.
+ */
+interface PhotoStorageRepository {
+    suspend fun upload(userId: String, bytes: ByteArray): String
 }

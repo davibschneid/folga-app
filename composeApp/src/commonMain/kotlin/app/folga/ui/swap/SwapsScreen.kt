@@ -27,10 +27,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.folga.domain.Folga
@@ -39,6 +41,8 @@ import app.folga.domain.Shift
 import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
 import app.folga.domain.User
+import app.folga.ui.common.AppBottomBar
+import app.folga.ui.common.MainTab
 import app.folga.ui.common.formatBrazilian
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -46,6 +50,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun SwapsScreen(
     onBack: () -> Unit,
+    onOpenProfile: () -> Unit,
     viewModel: SwapsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -56,13 +61,32 @@ fun SwapsScreen(
     val outgoing by viewModel.outgoing.collectAsStateWithLifecycle()
     val quota by viewModel.quotaStatus.collectAsStateWithLifecycle()
 
+    // Badge da aba Trocas: mesma lógica do Home, conta só os pendentes
+    // que chegaram pra mim. Derivado direto da lista já carregada.
+    val pendingCount = incoming.count { it.status == SwapStatus.PENDING }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Trocar dia de trabalho") },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Voltar") }
+                    TextButton(onClick = onBack) {
+                        Text("Voltar", color = Color.White)
+                    }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1E3A8A),
+                    titleContentColor = Color.White,
+                ),
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                selected = MainTab.SWAPS,
+                pendingSwapsCount = pendingCount,
+                onSelectHome = onBack,
+                onSelectSwaps = {},
+                onSelectProfile = onOpenProfile,
             )
         },
     ) { padding ->
