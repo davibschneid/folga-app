@@ -132,10 +132,14 @@ class ProfileViewModel(
                     )
                 }
             }.onFailure { t ->
+                // Aplica a mesma invariante do save(): se vai setar `error`,
+                // limpa `savedMessage` — senão o sucesso de um save que
+                // rodou em paralelo com o upload fica junto com o erro.
                 _state.update {
                     it.copy(
                         isUploadingPhoto = false,
                         error = t.message ?: "Falha ao enviar a foto",
+                        savedMessage = null,
                     )
                 }
             }
@@ -170,7 +174,14 @@ class ProfileViewModel(
                     it.copy(isSaving = false, savedMessage = "Perfil atualizado")
                 }
                 is AuthResult.Failure -> _state.update {
-                    it.copy(isSaving = false, error = result.message)
+                    // Mesma invariante: erro nunca coexiste com
+                    // savedMessage (pode ter sido setado pelo pickPhoto
+                    // que rodou em paralelo).
+                    it.copy(
+                        isSaving = false,
+                        error = result.message,
+                        savedMessage = null,
+                    )
                 }
             }
         }
