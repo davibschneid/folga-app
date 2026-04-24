@@ -14,7 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,29 +80,36 @@ fun FolgasScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Meus dias de trabalho") },
+                // Com 4 ações possíveis (Admin, Perfil, Relatório, Trocas),
+                // usar OutlinedButton com texto estourava a largura da
+                // TopAppBar em telas Android típicas (~360dp). Troquei pra
+                // IconButton com ícone + contentDescription pra acessibilidade.
                 actions = {
                     if (onOpenAdmin != null) {
-                        OutlinedButton(
-                            onClick = onOpenAdmin,
-                            modifier = Modifier.padding(end = 8.dp),
-                        ) {
-                            Text("Admin")
+                        IconButton(onClick = onOpenAdmin) {
+                            Icon(
+                                Icons.Filled.AdminPanelSettings,
+                                contentDescription = "Admin",
+                            )
                         }
                     }
-                    OutlinedButton(
-                        onClick = onOpenProfile,
-                        modifier = Modifier.padding(end = 8.dp),
-                    ) {
-                        Text("Perfil")
+                    IconButton(onClick = onOpenReports) {
+                        Icon(
+                            Icons.Filled.Assessment,
+                            contentDescription = "Relatório",
+                        )
                     }
-                    OutlinedButton(
-                        onClick = onOpenReports,
-                        modifier = Modifier.padding(end = 8.dp),
-                    ) {
-                        Text("Relatório")
+                    IconButton(onClick = onOpenSwaps) {
+                        Icon(
+                            Icons.Filled.SwapHoriz,
+                            contentDescription = "Trocas",
+                        )
                     }
-                    OutlinedButton(onClick = onOpenSwaps, modifier = Modifier.padding(end = 12.dp)) {
-                        Text("Trocas")
+                    IconButton(onClick = onOpenProfile) {
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = "Perfil",
+                        )
                     }
                 },
             )

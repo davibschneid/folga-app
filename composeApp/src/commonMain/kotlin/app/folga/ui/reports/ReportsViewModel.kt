@@ -12,6 +12,7 @@ import app.folga.domain.UserRepository
 import app.folga.domain.UserRole
 import app.folga.domain.rules.WorkedDaysReportRow
 import app.folga.domain.rules.buildWorkedDaysReport
+import app.folga.domain.rules.currentSwapPeriod
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,16 +24,14 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.datetime.Clock
-import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.minus
-import kotlinx.datetime.toLocalDateTime
 
 /**
  * Estado da tela de Relatório. `from`/`to` são o período selecionado.
- * Default: últimos 30 dias até hoje. Usuário pode trocar pelo date range
- * picker.
+ * Default: ciclo corrente de quota (dia 16 do mês → dia 15 do mês
+ * seguinte). Bate com a janela de fechamento do app e inclui também
+ * trocas agendadas futuras dentro do mesmo ciclo. Usuário pode trocar
+ * pelo date range picker.
  */
 data class ReportsUiState(
     val from: LocalDate,
@@ -46,16 +45,15 @@ class ReportsViewModel(
     private val swapRepository: SwapRepository,
 ) : ViewModel() {
 
-    private val today: LocalDate = Clock.System.now()
-        .toLocalDateTime(TimeZone.currentSystemDefault()).date
-
     private val _state = MutableStateFlow(
-        ReportsUiState(
-            // Default: últimos 30 dias. Um período razoável pra fechamento
-            // mensal sem forçar o admin a mexer no picker toda vez.
-            from = today.minus(30, DateTimeUnit.DAY),
-            to = today,
-        ),
+        // Default: ciclo corrente de quota (dia 16 → dia 15). O cliente
+        // espera enxergar, por exemplo, em 24/abr o período 16/abr →
+        // 15/mai, incluindo também os dias agendados pra frente que já
+        // fazem parte do mesmo fechamento. Usa o mesmo helper da
+        // regra de quota de trocas pra garantir consistência.
+        currentSwapPeriod(Clock.System.now()).let { period ->
+            ReportsUiState(from = period.start, to = period.endInclusive)
+        },
     )
     val state: StateFlow<ReportsUiState> = _state.asStateFlow()
 
