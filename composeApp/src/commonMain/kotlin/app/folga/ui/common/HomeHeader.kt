@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -52,6 +53,7 @@ fun HomeHeader(
     pendingSwapsCount: Int,
     onOpenProfile: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenReports: (() -> Unit)? = null,
 ) {
     val primary = Color(0xFF1E3A8A)
     Surface(color = primary) {
@@ -85,6 +87,15 @@ fun HomeHeader(
             if (userTeam.isNotBlank()) {
                 TeamChip(team = userTeam)
                 Spacer(Modifier.width(8.dp))
+            }
+            if (onOpenReports != null) {
+                IconButton(onClick = onOpenReports) {
+                    Icon(
+                        imageVector = Icons.Filled.Assessment,
+                        contentDescription = "Relatório de dias trabalhados",
+                        tint = Color.White,
+                    )
+                }
             }
             IconButton(onClick = onOpenNotifications) {
                 BadgedBox(

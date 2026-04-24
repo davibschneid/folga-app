@@ -73,6 +73,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun FolgasScreen(
     onOpenSwaps: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenReports: () -> Unit,
     viewModel: FolgasViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -94,6 +95,7 @@ fun FolgasScreen(
                 // listadas). Mais direto pro caso de uso principal do
                 // sino: "ver quem me pediu troca".
                 onOpenNotifications = onOpenSwaps,
+                onOpenReports = onOpenReports,
             )
         },
         bottomBar = {
