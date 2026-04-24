@@ -86,12 +86,14 @@ private fun AppContent() {
         Screen.CompletarCadastro -> CompletarCadastroScreen()
 
         // Home: com o redesign, a Home usa header azul + bottom bar
-        // (Home/Trocas/Perfil). Admin e Relatório saíram da TopAppBar
-        // e viraram itens dentro do Perfil — fluxos menos frequentes,
-        // melhor ficarem num menu estável.
+        // (Home/Trocas/Perfil). Admin saiu da TopAppBar e virou item
+        // dentro do Perfil (ação pouco frequente). Relatório voltou
+        // pro header — o cliente pediu pra ficar acessível direto da
+        // Home e continua também dentro do Perfil.
         Screen.Folgas -> FolgasScreen(
             onOpenSwaps = { screen = Screen.Swaps },
             onOpenProfile = { screen = Screen.Profile },
+            onOpenReports = { screen = Screen.Reports },
         )
 
         Screen.Swaps -> SwapsScreen(
