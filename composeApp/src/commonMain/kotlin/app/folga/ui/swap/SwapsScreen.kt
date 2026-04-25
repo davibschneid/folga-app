@@ -45,6 +45,7 @@ import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.MainTab
 import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.formatBrazilian
+import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -207,10 +208,17 @@ fun SwapsScreen(
             // Ordenamos Recebidas e Enviadas pela data da folga em
             // questão (ascendente — a próxima a acontecer primeiro).
             // A data vem de `allFolgas` via `fromFolgaId`. Trocas
-            // sem folga resolvida ficam no fim (data == null).
+            // sem folga resolvida (fromFolgaId não está em allFolgas)
+            // ficam no fim — usamos uma data sentinel bem distante,
+            // mesmo padrão do `FolgasViewModel.byDateOnly`. Sem o
+            // sentinel, `sortedBy` colocaria os nulls no início porque
+            // `compareValues` trata null como < qualquer não-null.
             val folgaDateById = allFolgas.associate { it.id to it.date }
-            val sortedIncoming = incoming.sortedBy { folgaDateById[it.fromFolgaId] }
-            val sortedOutgoing = outgoing.sortedBy { folgaDateById[it.fromFolgaId] }
+            val sortKey: (SwapRequest) -> LocalDate = { swap ->
+                folgaDateById[swap.fromFolgaId] ?: LocalDate(9999, 12, 31)
+            }
+            val sortedIncoming = incoming.sortedBy(sortKey)
+            val sortedOutgoing = outgoing.sortedBy(sortKey)
 
             Spacer(Modifier.height(24.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
