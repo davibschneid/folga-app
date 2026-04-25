@@ -207,6 +207,18 @@ class SwapsViewModel(
             }
             return
         }
+        // Defesa em profundidade: a UI já desabilita as chips de dias
+        // com troca pendente (`folgaIdsAwaiting`), mas se o state foi
+        // setado antes do `outgoing` carregar do Firestore (initial =
+        // emptyList) ou via sync multi-device, garantimos no ViewModel
+        // que não submetemos uma 2ª troca pra um dia que já tem
+        // pendente.
+        if (myId in folgaIdsAwaiting.value) {
+            _state.update {
+                it.copy(error = "Esse dia já tem uma troca pendente.")
+            }
+            return
+        }
         // Conflito de agenda do alvo: se o colega selecionado já tem
         // qualquer compromisso (folga ou troca) pra mesma data da folga
         // que estou cedendo, ele não pode aceitar — não dá pra trabalhar
