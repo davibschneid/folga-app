@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.folga.domain.AuthRepository
 import app.folga.domain.Folga
 import app.folga.domain.FolgaRepository
+import app.folga.domain.FolgaStatus
 import app.folga.domain.Shift
 import app.folga.domain.SwapRepository
 import app.folga.domain.SwapRequest
@@ -194,6 +195,23 @@ class FolgasViewModel(
             _state.update {
                 it.copy(
                     error = "Selecione uma data a partir de amanhã.",
+                    successMessage = null,
+                )
+            }
+            return
+        }
+        // Bloqueia duplicata: se o usuário já tem uma folga ativa
+        // (qualquer status que não seja CANCELLED) na mesma data, não
+        // permite criar outra. Inclui SCHEDULED (cadastrou direto),
+        // SWAPPED (assumiu via troca aceita) e COMPLETED (já passou).
+        // Pedido literal do cliente: "Dia de trabalho já registrado.".
+        val existing = folgas.value.any { f ->
+            f.date == date && f.status != FolgaStatus.CANCELLED
+        }
+        if (existing) {
+            _state.update {
+                it.copy(
+                    error = "Dia de trabalho já registrado.",
                     successMessage = null,
                 )
             }
