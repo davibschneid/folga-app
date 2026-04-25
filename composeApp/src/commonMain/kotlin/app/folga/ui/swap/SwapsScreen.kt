@@ -213,8 +213,11 @@ fun SwapsScreen(
                     folgas = allFolgas,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
+                            // Espaçamento entre os botões vem do
+                            // `Row(spacedBy=8.dp)` dentro do
+                            // `ShiftSwapCard` — Spacer manual aqui
+                            // somaria com o spacedBy e geraria 24dp.
                             Button(onClick = { viewModel.accept(swap.id) }) { Text("Aceitar") }
-                            Spacer(Modifier.width(8.dp))
                             OutlinedButton(onClick = { viewModel.reject(swap.id) }) { Text("Recusar") }
                         }
                     },
