@@ -56,6 +56,7 @@ fun SwapsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val my by viewModel.myFolgas.collectAsStateWithLifecycle()
+    val allFolgas by viewModel.allFolgas.collectAsStateWithLifecycle()
     val colleagues by viewModel.colleagues.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
     val incoming by viewModel.incoming.collectAsStateWithLifecycle()
@@ -197,8 +198,10 @@ fun SwapsScreen(
             // das trocas agendadas da Home pra manter o layout coeso
             // (pedido do cliente). O slot de `actions` recebe os botões
             // específicos de cada lista (Aceitar/Recusar pras recebidas,
-            // Cancelar pras enviadas).
-            val myFolgas = my
+            // Cancelar pras enviadas). Passamos `allFolgas` (não só as
+            // minhas) pra a data resolver corretamente em incoming
+            // (fromFolgaId é do requester) e em outgoing já aceita (a
+            // folga foi transferida pro target).
             Spacer(Modifier.height(24.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
@@ -207,7 +210,7 @@ fun SwapsScreen(
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
-                    folgas = myFolgas,
+                    folgas = allFolgas,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             Button(onClick = { viewModel.accept(swap.id) }) { Text("Aceitar") }
@@ -227,7 +230,7 @@ fun SwapsScreen(
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
-                    folgas = myFolgas,
+                    folgas = allFolgas,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             OutlinedButton(onClick = { viewModel.cancel(swap.id) }) { Text("Cancelar") }
@@ -320,9 +323,9 @@ private fun UserChips(
 /**
  * Wrapper que monta os parâmetros do [ShiftSwapCard] a partir do
  * [SwapRequest] cru — resolve nomes/fotos/turnos no [users] e a data
- * (folga.date) no [folgas]. `folgas` é só o conjunto do usuário atual,
- * o que é suficiente porque toda troca em recebidas/enviadas envolve
- * uma folga que pertence (ou pertenceu) ao usuário logado.
+ * (folga.date) no [folgas]. `folgas` precisa ser a lista global do
+ * sistema porque o `fromFolgaId` pode pertencer a outro usuário
+ * (incoming) ou ter sido transferido (outgoing já aceita).
  */
 @Composable
 private fun SwapCardWithActions(
@@ -343,6 +346,9 @@ private fun SwapCardWithActions(
         targetShift = target?.shift,
         date = date,
         status = swap.status,
-        actions = { Row(verticalAlignment = Alignment.CenterVertically) { actions() } },
+        // ShiftSwapCard já envelopa as actions num Row próprio (em
+        // linha separada do badge) com spacedBy(8.dp), então só
+        // precisamos passar as ações cruas — sem Row extra.
+        actions = actions,
     )
 }

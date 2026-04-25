@@ -25,7 +25,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
 
 data class FolgasUiState(
     val isLoading: Boolean = false,
@@ -176,6 +180,20 @@ class FolgasViewModel(
             _state.update {
                 it.copy(
                     error = "Selecione uma data válida no calendário",
+                    successMessage = null,
+                )
+            }
+            return
+        }
+        // D+1 mínimo: o picker já bloqueia datas <= hoje, mas mantemos a
+        // checagem aqui como defesa em profundidade (state pode ser
+        // setado via outro caminho). "Hoje" é o dia local do dispositivo.
+        val tomorrow = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            .plus(1, DateTimeUnit.DAY)
+        if (date < tomorrow) {
+            _state.update {
+                it.copy(
+                    error = "Selecione uma data a partir de amanhã.",
                     successMessage = null,
                 )
             }

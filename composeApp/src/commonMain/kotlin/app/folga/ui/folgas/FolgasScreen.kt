@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,10 +52,14 @@ import app.folga.ui.common.HomeHeader
 import app.folga.ui.common.MainTab
 import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.formatBrazilian
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -340,7 +345,28 @@ private fun FolgaDatePickerField(
             .getOrNull()
             ?.atStartOfDayIn(TimeZone.UTC)
             ?.toEpochMilliseconds()
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialEpochMillis)
+        // Mínimo permitido: D+1 (amanhã, no fuso do dispositivo). Não dá
+        // pra cadastrar dia de trabalho retroativamente nem pra "hoje" —
+        // isso evita que o usuário tente trocar o turno do dia que já
+        // está em curso. Usamos UTC pra converter `tomorrow` em millis
+        // pra alinhar com o critério usado pelo M3 DatePicker (que
+        // recebe `utcTimeMillis` e compara contra a data clicada
+        // também em UTC). Sem isso o picker libera dias passados.
+        val tomorrow = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            .plus(1, DateTimeUnit.DAY)
+        val minSelectableUtcMillis = tomorrow.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+        val selectableDates = remember(minSelectableUtcMillis) {
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis >= minSelectableUtcMillis
+                override fun isSelectableYear(year: Int): Boolean =
+                    year >= tomorrow.year
+            }
+        }
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialEpochMillis,
+            selectableDates = selectableDates,
+        )
         DatePickerDialog(
             onDismissRequest = { showDialog = false },
             confirmButton = {

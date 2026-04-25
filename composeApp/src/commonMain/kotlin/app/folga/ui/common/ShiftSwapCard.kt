@@ -117,13 +117,21 @@ fun ShiftSwapCard(
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                StatusBadge(status = status)
-                if (actions != null) actions()
+            // Status badge sempre numa linha só (à esquerda). Quando o
+            // card tem ações (Aceitar/Recusar/Cancelar), elas vão numa
+            // linha separada abaixo do badge — evita quebra do label
+            // "Recusar" em telas estreitas (4xx px) onde StatusBadge +
+            // 2 botões não caberiam lado a lado no mesmo Row.
+            StatusBadge(status = status)
+            if (actions != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    actions()
+                }
             }
         }
     }
