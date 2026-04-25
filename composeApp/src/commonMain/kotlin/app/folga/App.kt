@@ -56,6 +56,11 @@ private fun AppContent() {
     val authRepository = koinInject<AuthRepository>()
     val currentUser by authRepository.currentUser.collectAsState(initial = null)
     var screen by remember { mutableStateOf<Screen>(Screen.Login) }
+    // Reports pode ser aberto da Home (atalho no header) ou do Perfil
+    // (item da lista). Sem rastrear a origem, o "voltar" sempre cai no
+    // mesmo lugar — o que confunde quem entrou pela Home. Guardamos a
+    // tela anterior em `reportsOrigin` quando navegamos pra Reports.
+    var reportsOrigin by remember { mutableStateOf<Screen>(Screen.Folgas) }
 
     // Auto-navigate based on auth + profile state.
     val user = currentUser
@@ -93,7 +98,10 @@ private fun AppContent() {
         Screen.Folgas -> FolgasScreen(
             onOpenSwaps = { screen = Screen.Swaps },
             onOpenProfile = { screen = Screen.Profile },
-            onOpenReports = { screen = Screen.Reports },
+            onOpenReports = {
+                reportsOrigin = Screen.Folgas
+                screen = Screen.Reports
+            },
         )
 
         Screen.Swaps -> SwapsScreen(
@@ -114,11 +122,14 @@ private fun AppContent() {
         Screen.Profile -> ProfileScreen(
             onBack = { screen = Screen.Folgas },
             onOpenSwaps = { screen = Screen.Swaps },
-            onOpenReports = { screen = Screen.Reports },
+            onOpenReports = {
+                reportsOrigin = Screen.Profile
+                screen = Screen.Reports
+            },
             onOpenAdmin = { screen = Screen.Admin }
                 .takeIf { user?.role == UserRole.ADMIN },
         )
 
-        Screen.Reports -> ReportsScreen(onBack = { screen = Screen.Profile })
+        Screen.Reports -> ReportsScreen(onBack = { screen = reportsOrigin })
     }
 }
