@@ -32,26 +32,32 @@ import app.folga.domain.SwapStatus
 import kotlinx.datetime.LocalDate
 
 /**
- * Card de "Troca de Turno" usado tanto na Home quanto na tela de Trocas.
- * Layout inspirado no snippet enviado pelo cliente: dois avatares de
+ * Card de "Troca de trabalho" usado tanto na Home quanto na tela de
+ * Trocas. Layout inspirado no snippet do cliente: dois avatares de
  * perfil separados por um ícone de seta dupla, nomes logo abaixo, linha
- * com turnos e badge de status no rodapé.
+ * descritiva da troca e badge de status no rodapé.
  *
- * Estrutura:
- * - Header: título "Troca de Turno" + data à direita
+ * Estrutura (compacta — alturas de padding/spacer reduzidas em ~25%
+ * em relação ao layout original pra caberem mais cards na home sem
+ * scroll):
+ * - Header: título "Troca de trabalho" + data à direita
  * - Row dos avatares + nomes + seta
- * - Linha "Fulano: Manhã | Ciclano: Tarde" (se ambos turnos estão
- *   preenchidos; senão omite)
+ * - Linha "{target} trabalha para {requester} no dia DD/MM" — espelha o
+ *   modelo unidirecional: o `target` é o colega que assumiu o dia; o
+ *   `requester` é quem cadastrou o dia e pediu a troca. Os parâmetros
+ *   `requesterShift`/`targetShift` ficam disponíveis na assinatura mas
+ *   não são exibidos (a linha de turno foi removida — turno é regra
+ *   de negócio interna, não interessa ao usuário lendo a troca).
  * - Badge de status
  */
 @Composable
 fun ShiftSwapCard(
     requesterName: String,
     requesterPhotoUrl: String?,
-    requesterShift: Shift?,
+    @Suppress("UNUSED_PARAMETER") requesterShift: Shift?,
     targetName: String,
     targetPhotoUrl: String?,
-    targetShift: Shift?,
+    @Suppress("UNUSED_PARAMETER") targetShift: Shift?,
     date: LocalDate?,
     status: SwapStatus,
     modifier: Modifier = Modifier,
@@ -63,14 +69,14 @@ fun ShiftSwapCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = "Troca de Turno",
+                    text = "Troca de trabalho",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
@@ -80,7 +86,7 @@ fun ShiftSwapCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -99,20 +105,18 @@ fun ShiftSwapCard(
                     alignment = Alignment.End,
                 )
             }
-            if (requesterShift != null && targetShift != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("$requesterName: ") }
-                        append(shiftLabel(requesterShift))
-                        append("  |  ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("$targetName: ") }
-                        append(shiftLabel(targetShift))
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(targetName) }
+                    append(" trabalha para ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(requesterName) }
+                    append(" no dia ")
+                    append(date?.let { formatShort(it) } ?: "—")
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -136,8 +140,10 @@ private fun ParticipantColumn(
         modifier = modifier,
         horizontalAlignment = alignment,
     ) {
-        ProfileAvatar(name = name, photoUrl = photoUrl, size = 40.dp)
-        Spacer(Modifier.height(6.dp))
+        // Avatar reduzido (40 → 36) acompanhando o redesign mais compacto
+        // do card. Spacer entre avatar e nome também reduzido.
+        ProfileAvatar(name = name, photoUrl = photoUrl, size = 36.dp)
+        Spacer(Modifier.height(4.dp))
         Text(
             text = name,
             style = MaterialTheme.typography.bodyMedium,
