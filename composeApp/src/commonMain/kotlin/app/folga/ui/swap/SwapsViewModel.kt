@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -111,6 +112,22 @@ class SwapsViewModel(
     val outgoing: StateFlow<List<SwapRequest>> = currentUser
         .flatMapLatest { u -> if (u == null) flowOf(emptyList()) else swapRepository.observeOutgoing(u.id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Ids das folgas do usuário que estão "aguardando aprovação" — ou
+     * seja, são `fromFolgaId` de uma troca PENDENTE iniciada por ele.
+     * Usado pra:
+     *  - Renderizar badge laranja "Aguardando" ao lado da chip do dia.
+     *  - Desabilitar a seleção dessa chip (não dá pra abrir uma 2ª
+     *    troca pra um dia que já tem troca pendente em andamento).
+     */
+    val folgaIdsAwaiting: StateFlow<Set<String>> = outgoing
+        .map { list ->
+            list.filter { it.status == app.folga.domain.SwapStatus.PENDING }
+                .map { it.fromFolgaId }
+                .toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /**
      * União de `incoming + outgoing` do usuário atual. Usado em

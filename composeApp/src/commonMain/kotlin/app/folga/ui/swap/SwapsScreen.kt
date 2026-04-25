@@ -57,6 +57,7 @@ fun SwapsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val my by viewModel.myFolgas.collectAsStateWithLifecycle()
     val allFolgas by viewModel.allFolgas.collectAsStateWithLifecycle()
+    val awaiting by viewModel.folgaIdsAwaiting.collectAsStateWithLifecycle()
     val colleagues by viewModel.colleagues.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
     val incoming by viewModel.incoming.collectAsStateWithLifecycle()
@@ -150,6 +151,7 @@ fun SwapsScreen(
                 selectedId = state.selectedMyFolgaId,
                 onSelect = viewModel::selectMy,
                 users = users,
+                awaitingIds = awaiting,
             )
 
             Spacer(Modifier.height(12.dp))
@@ -263,6 +265,7 @@ private fun FolgaChips(
     selectedId: String?,
     onSelect: (String) -> Unit,
     users: List<User>,
+    awaitingIds: Set<String>,
 ) {
     if (folgas.isEmpty()) {
         Text("Nenhum dia disponível.", style = MaterialTheme.typography.bodySmall)
@@ -279,10 +282,33 @@ private fun FolgaChips(
     ) {
         folgas.forEach { folga ->
             val owner = users.firstOrNull { it.id == folga.userId }?.name ?: "—"
+            // Se o dia tem troca pendente, marcamos visualmente com
+            // " · Aguardando" em laranja no fim do label e bloqueamos
+            // a seleção (`enabled = false`). O M3 FilterChip cinza-out
+            // automaticamente quando `enabled = false`, então o usuário
+            // entende que aquela chip não é interativa. Pedido do
+            // cliente: deixar claro que o dia já tem solicitação em
+            // aberto e impedir nova solicitação pra ele.
+            val pending = folga.id in awaitingIds
             FilterChip(
                 selected = selectedId == folga.id,
                 onClick = { onSelect(folga.id) },
-                label = { Text("${folga.date.formatBrazilian()} · $owner") },
+                enabled = !pending,
+                label = {
+                    if (pending) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${folga.date.formatBrazilian()} · $owner")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Aguardando",
+                                color = Color(0xFFFF8A00),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    } else {
+                        Text("${folga.date.formatBrazilian()} · $owner")
+                    }
+                },
                 colors = FilterChipDefaults.filterChipColors(),
             )
         }
