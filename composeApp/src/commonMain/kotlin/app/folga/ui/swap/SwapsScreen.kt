@@ -346,6 +346,9 @@ private fun SwapCardWithActions(
         targetShift = target?.shift,
         date = date,
         status = swap.status,
-        actions = { Row(verticalAlignment = Alignment.CenterVertically) { actions() } },
+        // ShiftSwapCard já envelopa as actions num Row próprio (em
+        // linha separada do badge) com spacedBy(8.dp), então só
+        // precisamos passar as ações cruas — sem Row extra.
+        actions = actions,
     )
 }

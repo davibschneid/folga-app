@@ -113,6 +113,22 @@ class SwapsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * União de `incoming + outgoing` do usuário atual. Usado em
+     * [requestSwap] pra checar se o alvo já é requester ou target de
+     * outra troca não-cancelada na mesma data. As regras do Firestore
+     * só permitem read de trocas onde o usuário é parte ou é admin
+     * (`firestore.rules` linha 199), então a checagem cobre cenários
+     * onde o usuário atual também participa de outra troca envolvendo
+     * o mesmo colega — que é o caso comum (eu peço troca pra B em D1,
+     * depois tento de novo pra D1 com outra folga minha, etc.).
+     */
+    private val allSwaps: StateFlow<List<SwapRequest>> = combine(
+        incoming,
+        outgoing,
+    ) { inc, out -> (inc + out).distinctBy { it.id } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * Contagem de trocas ACEITAS iniciadas pelo usuário no período corrente
      * (dia 16 do mês atual → dia 15 do próximo) vs quota permitida para seu
      * turno (MANHA/TARDE=4, NOITE=3). Regra: só trocas aceitas consomem
@@ -174,27 +190,42 @@ class SwapsViewModel(
             }
             return
         }
-        // Conflito de agenda do alvo: se o colega selecionado já tem outro
-        // dia de trabalho cadastrado/agendado pra mesma data da folga que
-        // estou cedendo, ele não pode aceitar (não dá pra trabalhar dois
-        // turnos no mesmo dia). Detecta:
-        //  - Folgas próprias do alvo no mesmo dia (status SCHEDULED)
-        //  - Folgas que o alvo já assumiu via troca aceita anteriormente
-        //    (folga foi transferida pra ele, status SWAPPED)
-        // SCHEDULED da própria pessoa A (a folga que A está cedendo) não
-        // entra na checagem porque é justamente o objeto da troca.
+        // Conflito de agenda do alvo: se o colega selecionado já tem
+        // qualquer compromisso (folga ou troca) pra mesma data da folga
+        // que estou cedendo, ele não pode aceitar — não dá pra trabalhar
+        // dois turnos no mesmo dia.
+        //
+        // Cobertura:
+        //  - Folga do alvo na mesma data (status != CANCELLED). Inclui
+        //    SCHEDULED (cadastrou direto) ou SWAPPED (já assumiu via
+        //    outra troca aceita). Se a folga em questão é a própria que
+        //    estou cedendo (`myId`), não conta — é o objeto da troca.
+        //  - Troca **não cancelada** onde o alvo é requester OU target,
+        //    na mesma data. Pedido literal do cliente: "validar se
+        //    existe agendamento com status diferente de cancelado". Pega
+        //    PENDING (compromisso vivo aguardando), ACCEPTED (já
+        //    confirmado) e REJECTED (recusou anterior — evita reenfileirar
+        //    o mesmo conflito).
         val myFolga = allFolgas.value.firstOrNull { it.id == myId }
         if (myFolga != null) {
-            val targetHasConflict = allFolgas.value.any { f ->
-                f.userId == targetUserId &&
+            val folgaConflict = allFolgas.value.any { f ->
+                f.id != myId &&
+                    f.userId == targetUserId &&
                     f.date == myFolga.date &&
                     f.status != FolgaStatus.CANCELLED
             }
-            if (targetHasConflict) {
+            val swapConflict = allSwaps.value.any { s ->
+                if (s.status == app.folga.domain.SwapStatus.CANCELLED) return@any false
+                if (s.requesterId != targetUserId && s.targetId != targetUserId) return@any false
+                val swapDate = allFolgas.value.firstOrNull { it.id == s.fromFolgaId }?.date
+                swapDate == myFolga.date
+            }
+            if (folgaConflict || swapConflict) {
                 _state.update {
                     it.copy(
-                        error = "O colega selecionado já tem um dia de trabalho " +
-                            "agendado para essa data e não pode assumir a troca.",
+                        error = "O colega selecionado já tem um agendamento ou " +
+                            "troca em aberto para essa data e não pode assumir " +
+                            "a solicitação.",
                     )
                 }
                 return
