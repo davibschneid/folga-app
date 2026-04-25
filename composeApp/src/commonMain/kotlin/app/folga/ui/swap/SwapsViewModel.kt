@@ -5,12 +5,13 @@ import androidx.lifecycle.viewModelScope
 import app.folga.domain.AuthRepository
 import app.folga.domain.Folga
 import app.folga.domain.FolgaRepository
+import app.folga.domain.FolgaStatus
 import app.folga.domain.Shift
 import app.folga.domain.SwapRepository
 import app.folga.domain.SwapRequest
 import app.folga.domain.User
 import app.folga.domain.UserRepository
-import app.folga.domain.rules.countAcceptedInitiatedSwaps
+import app.folga.domain.rules.countQuotaConsumingSwaps
 import app.folga.domain.rules.currentSwapPeriod
 import app.folga.domain.rules.swapQuotaFor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -76,6 +77,14 @@ class SwapsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * Todas as folgas do sistema. Usado pra checar se o colega selecionado
+     * já tem compromisso na data da troca antes de submeter (ver
+     * [requestSwap]). Persistence offline do Firestore cobre o custo.
+     */
+    private val allFolgas: StateFlow<List<Folga>> = folgaRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * Lista de colegas disponíveis pra assumir um dia — todos os usuários
      * do sistema exceto o próprio usuário logado e filtrados por
      * compatibilidade de turno (diurno MANHA/TARDE só troca com diurno,
@@ -111,7 +120,7 @@ class SwapsViewModel(
             val period = currentSwapPeriod(Clock.System.now())
             SwapQuotaStatus(
                 shift = me.shift,
-                used = countAcceptedInitiatedSwaps(me.id, out, period),
+                used = countQuotaConsumingSwaps(me.id, out, period),
                 quota = swapQuotaFor(me.shift),
             )
         }
@@ -160,6 +169,32 @@ class SwapsViewModel(
                 )
             }
             return
+        }
+        // Conflito de agenda do alvo: se o colega selecionado já tem outro
+        // dia de trabalho cadastrado/agendado pra mesma data da folga que
+        // estou cedendo, ele não pode aceitar (não dá pra trabalhar dois
+        // turnos no mesmo dia). Detecta:
+        //  - Folgas próprias do alvo no mesmo dia (status SCHEDULED)
+        //  - Folgas que o alvo já assumiu via troca aceita anteriormente
+        //    (folga foi transferida pra ele, status SWAPPED)
+        // SCHEDULED da própria pessoa A (a folga que A está cedendo) não
+        // entra na checagem porque é justamente o objeto da troca.
+        val myFolga = allFolgas.value.firstOrNull { it.id == myId }
+        if (myFolga != null) {
+            val targetHasConflict = allFolgas.value.any { f ->
+                f.userId == targetUserId &&
+                    f.date == myFolga.date &&
+                    f.status != FolgaStatus.CANCELLED
+            }
+            if (targetHasConflict) {
+                _state.update {
+                    it.copy(
+                        error = "O colega selecionado já tem um dia de trabalho " +
+                            "agendado para essa data e não pode assumir a troca.",
+                    )
+                }
+                return
+            }
         }
         submitSwap(me.id, myId, targetUserId)
     }

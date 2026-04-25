@@ -227,39 +227,45 @@ fun ReportsScreen(
 
 @Composable
 private fun HeaderRow() {
+    // Pesos das colunas: "Assumidos" precisa de mais espaço que as outras
+    // numéricas porque é a label mais longa (9 chars). Usar `labelSmall`
+    // também ajuda a caber em telas estreitas sem quebrar a palavra.
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "Colaborador",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(2.2f),
+            modifier = Modifier.weight(2.0f),
+            maxLines = 1,
         )
-        NumberHeader("Cedidos")
-        NumberHeader("Assumidos")
-        NumberHeader("Saldo")
+        NumberHeader("Cedidos", weight = 1.0f)
+        NumberHeader("Assumidos", weight = 1.3f)
+        NumberHeader("Saldo", weight = 0.9f)
     }
 }
 
 @Composable
-private fun RowScope.NumberHeader(text: String) {
+private fun RowScope.NumberHeader(text: String, weight: Float) {
     Text(
         text,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.weight(1f).padding(start = 4.dp),
+        modifier = Modifier.weight(weight).padding(start = 4.dp),
+        maxLines = 1,
     )
 }
 
 @Composable
 private fun DataRow(row: WorkedDaysReportRow) {
+    // Pesos espelham os do HeaderRow pra colunas alinharem.
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            modifier = Modifier.weight(2.2f),
+            modifier = Modifier.weight(2.0f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ProfileAvatar(
@@ -277,12 +283,12 @@ private fun DataRow(row: WorkedDaysReportRow) {
         Text(
             row.cededDays.toString(),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            modifier = Modifier.weight(1.0f).padding(start = 4.dp),
         )
         Text(
             row.assumedDays.toString(),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            modifier = Modifier.weight(1.3f).padding(start = 4.dp),
         )
         Text(
             // Prefixo + pra saldo positivo deixa óbvio que o colaborador
@@ -295,7 +301,7 @@ private fun DataRow(row: WorkedDaysReportRow) {
                 row.balance < 0 -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.onSurface
             },
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            modifier = Modifier.weight(0.9f).padding(start = 4.dp),
         )
     }
 }
