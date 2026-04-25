@@ -77,11 +77,15 @@ class SwapsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * Todas as folgas do sistema. Usado pra checar se o colega selecionado
-     * já tem compromisso na data da troca antes de submeter (ver
-     * [requestSwap]). Persistence offline do Firestore cobre o custo.
+     * Todas as folgas do sistema. Usado pra:
+     * - Checar conflito de agenda do alvo antes de submeter ([requestSwap]).
+     * - Resolver a data exibida nos cards de Recebidas/Enviadas — o
+     *   `fromFolgaId` pode pertencer a qualquer usuário (no caso de
+     *   incoming) ou ter sido transferido pro target (no caso de outgoing
+     *   já aceita), então `myFolgas` (só folgas do usuário logado) não
+     *   resolve. `allFolgas` cobre os dois casos.
      */
-    private val allFolgas: StateFlow<List<Folga>> = folgaRepository.observeAll()
+    val allFolgas: StateFlow<List<Folga>> = folgaRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
