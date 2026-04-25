@@ -254,7 +254,7 @@ private fun RegistrarDiaCard(
                         contentDescription = null,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("REGISTRAR TURNO")
+                    Text("REGISTRAR")
                 }
             }
         }
