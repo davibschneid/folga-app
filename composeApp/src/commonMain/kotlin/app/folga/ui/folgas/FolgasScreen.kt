@@ -206,6 +206,15 @@ private fun RegistrarDiaCard(
                 text = "Registrar Dia de Trabalho",
                 style = MaterialTheme.typography.titleLarge,
             )
+            Spacer(Modifier.height(4.dp))
+            // Subtítulo explicativo: o usuário registra aqui o dia que
+            // ele quer ceder em troca. Adicionado pra deixar claro o
+            // propósito do card (pedido do cliente).
+            Text(
+                text = "Registrar o dia de trabalho que deseja trocar.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(12.dp))
             FolgaDatePickerField(selected = date, onPick = onDateChange)
             Text(

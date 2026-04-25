@@ -73,20 +73,28 @@ fun swapQuotaFor(shift: Shift): Int = when (shift) {
 }
 
 /**
- * Conta quantas trocas ACEITAS o usuário iniciou (foi o requester) no período.
- * Aceitas apenas — pendentes/rejeitadas/canceladas não entram. Só quem iniciou
- * a troca consome quota; o alvo não.
+ * Conta quantas trocas o usuário iniciou (foi o requester) no período e que
+ * **consomem quota** — ou seja, trocas em status `PENDING` ou `ACCEPTED`.
  *
- * Usa `respondedAt` quando disponível (momento em que a troca virou ACCEPTED),
- * caindo pra `createdAt` como fallback defensivo.
+ * Por que `PENDING` também conta: antes só `ACCEPTED` consumia quota, mas
+ * isso permitia o usuário disparar várias solicitações pendentes em paralelo
+ * e estourar o limite quando os colegas começavam a aceitar (bug reportado:
+ * usuário fez 5 trocas com quota=4). Agora qualquer troca ainda viva (não
+ * recusada/cancelada) reserva slot na quota até ter destino definitivo.
+ *
+ * `REJECTED` e `CANCELLED` não consomem porque a solicitação foi descartada
+ * — a slot é devolvida pro usuário tentar de novo.
+ *
+ * Usa `respondedAt` quando disponível (mais próximo da data efetiva da
+ * troca aceita) e `createdAt` em todos os outros casos.
  */
-fun countAcceptedInitiatedSwaps(
+fun countQuotaConsumingSwaps(
     userId: String,
     swaps: List<SwapRequest>,
     period: SwapPeriod,
     zone: TimeZone = TimeZone.currentSystemDefault(),
 ): Int = swaps.count { swap ->
     swap.requesterId == userId &&
-        swap.status == SwapStatus.ACCEPTED &&
+        (swap.status == SwapStatus.PENDING || swap.status == SwapStatus.ACCEPTED) &&
         (swap.respondedAt ?: swap.createdAt).let { period.contains(it, zone) }
 }

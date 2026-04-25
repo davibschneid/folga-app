@@ -43,6 +43,7 @@ import app.folga.domain.SwapStatus
 import app.folga.domain.User
 import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.MainTab
+import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.formatBrazilian
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -60,6 +61,7 @@ fun SwapsScreen(
     val incoming by viewModel.incoming.collectAsStateWithLifecycle()
     val outgoing by viewModel.outgoing.collectAsStateWithLifecycle()
     val quota by viewModel.quotaStatus.collectAsStateWithLifecycle()
+    val me by viewModel.currentUser.collectAsStateWithLifecycle()
 
     // Badge da aba Trocas: mesma lógica do Home, conta só os pendentes
     // que chegaram pra mim. Derivado direto da lista já carregada.
@@ -96,6 +98,19 @@ fun SwapsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
+            // Aviso pra noturno: regra de negócio "até 2 plantões seguidos".
+            // Mostrado em vermelho como flag visível antes de o noturno
+            // selecionar dia/colega — chama atenção pra um limite que não
+            // tem como o app validar (depende da escala) mas que o usuário
+            // precisa lembrar.
+            if (me?.shift == Shift.NOITE) {
+                Text(
+                    text = "Permitido trabalho em até 2 plantões seguidos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             quota?.let { q ->
                 // Chip informativo com a quota restante. Cor muda quando
                 // o usuário atinge o limite, pra deixar óbvio que novas
@@ -178,14 +193,21 @@ fun SwapsScreen(
                 )
             }
 
+            // Listas de Recebidas/Enviadas usam o mesmo `ShiftSwapCard`
+            // das trocas agendadas da Home pra manter o layout coeso
+            // (pedido do cliente). O slot de `actions` recebe os botões
+            // específicos de cada lista (Aceitar/Recusar pras recebidas,
+            // Cancelar pras enviadas).
+            val myFolgas = my
             Spacer(Modifier.height(24.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             if (incoming.isEmpty()) Text("Nenhuma solicitação recebida.", style = MaterialTheme.typography.bodySmall)
             incoming.forEach { swap ->
-                SwapRow(
+                SwapCardWithActions(
                     swap = swap,
                     users = users,
+                    folgas = myFolgas,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             Button(onClick = { viewModel.accept(swap.id) }) { Text("Aceitar") }
@@ -202,9 +224,10 @@ fun SwapsScreen(
             Spacer(Modifier.height(8.dp))
             if (outgoing.isEmpty()) Text("Nenhuma solicitação enviada.", style = MaterialTheme.typography.bodySmall)
             outgoing.forEach { swap ->
-                SwapRow(
+                SwapCardWithActions(
                     swap = swap,
                     users = users,
+                    folgas = myFolgas,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             OutlinedButton(onClick = { viewModel.cancel(swap.id) }) { Text("Cancelar") }
@@ -294,34 +317,32 @@ private fun UserChips(
     }
 }
 
+/**
+ * Wrapper que monta os parâmetros do [ShiftSwapCard] a partir do
+ * [SwapRequest] cru — resolve nomes/fotos/turnos no [users] e a data
+ * (folga.date) no [folgas]. `folgas` é só o conjunto do usuário atual,
+ * o que é suficiente porque toda troca em recebidas/enviadas envolve
+ * uma folga que pertence (ou pertenceu) ao usuário logado.
+ */
 @Composable
-private fun SwapRow(
+private fun SwapCardWithActions(
     swap: SwapRequest,
     users: List<User>,
+    folgas: List<Folga>,
     actions: @Composable () -> Unit,
 ) {
-    val requester = users.firstOrNull { it.id == swap.requesterId }?.name ?: swap.requesterId
-    val target = users.firstOrNull { it.id == swap.targetId }?.name ?: swap.targetId
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text("$requester ↔ $target", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "Status: ${swapStatusLabel(swap.status)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (!swap.message.isNullOrBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(swap.message, style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) { actions() }
-        }
-    }
-}
-
-private fun swapStatusLabel(status: SwapStatus): String = when (status) {
-    SwapStatus.PENDING -> "Aguardando resposta"
-    SwapStatus.ACCEPTED -> "Confirmada"
-    SwapStatus.REJECTED -> "Recusada"
-    SwapStatus.CANCELLED -> "Cancelada"
+    val requester = users.firstOrNull { it.id == swap.requesterId }
+    val target = users.firstOrNull { it.id == swap.targetId }
+    val date = folgas.firstOrNull { it.id == swap.fromFolgaId }?.date
+    ShiftSwapCard(
+        requesterName = requester?.name ?: swap.requesterId,
+        requesterPhotoUrl = requester?.photoUrl,
+        requesterShift = requester?.shift,
+        targetName = target?.name ?: swap.targetId,
+        targetPhotoUrl = target?.photoUrl,
+        targetShift = target?.shift,
+        date = date,
+        status = swap.status,
+        actions = { Row(verticalAlignment = Alignment.CenterVertically) { actions() } },
+    )
 }

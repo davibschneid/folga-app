@@ -11,6 +11,7 @@ import app.folga.domain.SwapRequest
 import app.folga.domain.SwapStatus
 import app.folga.domain.User
 import app.folga.domain.UserRepository
+import app.folga.domain.rules.currentSwapPeriod
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 
 data class FolgasUiState(
@@ -103,12 +105,11 @@ class FolgasViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * Trocas "agendadas" envolvendo o usuário atual. Inclui `PENDING` e
-     * `ACCEPTED` — as duas representam compromissos reais ou potenciais
-     * (pendente = aguardando resposta, aceita = confirmada). `REJECTED`
-     * e `CANCELLED` ficam de fora porque não resultam em troca real.
-     * Ordenado por data do dia do solicitante pra ajudar o usuário a ver
-     * o que está mais próximo.
+     * Trocas "agendadas" envolvendo o usuário atual. Mostra apenas trocas
+     * **confirmadas** (status `ACCEPTED`) cuja data cai no período corrente
+     * (dia 16 → dia 15 do mês seguinte). Pedido do cliente: a Home só lista
+     * o que de fato vai acontecer no ciclo atual; pendentes ficam na tela
+     * de Trocas até serem aceitas/recusadas. Ordenado por data crescente.
      */
     val scheduledSwaps: StateFlow<List<ScheduledSwap>> = combine(
         incoming,
@@ -118,9 +119,14 @@ class FolgasViewModel(
     ) { inc, out, allF, allU ->
         val userById = allU.associateBy { it.id }
         val folgaById = allF.associateBy { it.id }
+        val period = currentSwapPeriod(Clock.System.now())
         val merged = (inc + out).distinctBy { it.id }
         merged
-            .filter { it.status == SwapStatus.PENDING || it.status == SwapStatus.ACCEPTED }
+            .filter { swap ->
+                if (swap.status != SwapStatus.ACCEPTED) return@filter false
+                val date = folgaById[swap.fromFolgaId]?.date ?: return@filter false
+                period.contains(date)
+            }
             .map { swap ->
                 val requester = userById[swap.requesterId]
                 val target = userById[swap.targetId]
