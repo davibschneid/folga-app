@@ -200,12 +200,12 @@ class SwapsViewModel(
         //    SCHEDULED (cadastrou direto) ou SWAPPED (já assumiu via
         //    outra troca aceita). Se a folga em questão é a própria que
         //    estou cedendo (`myId`), não conta — é o objeto da troca.
-        //  - Troca **não cancelada** onde o alvo é requester OU target,
-        //    na mesma data. Pedido literal do cliente: "validar se
-        //    existe agendamento com status diferente de cancelado". Pega
-        //    PENDING (compromisso vivo aguardando), ACCEPTED (já
-        //    confirmado) e REJECTED (recusou anterior — evita reenfileirar
-        //    o mesmo conflito).
+        //  - Troca PENDING ou ACCEPTED onde o alvo é requester OU target,
+        //    na mesma data. PENDING = compromisso vivo aguardando aceite.
+        //    ACCEPTED = já confirmado. REJECTED e CANCELLED não contam:
+        //    REJECTED só registra que o alvo recusou — não é compromisso
+        //    real, então uma nova tentativa pode ser válida; CANCELLED
+        //    foi explicitamente desfeita pelo requester.
         val myFolga = allFolgas.value.firstOrNull { it.id == myId }
         if (myFolga != null) {
             val folgaConflict = allFolgas.value.any { f ->
@@ -215,7 +215,9 @@ class SwapsViewModel(
                     f.status != FolgaStatus.CANCELLED
             }
             val swapConflict = allSwaps.value.any { s ->
-                if (s.status == app.folga.domain.SwapStatus.CANCELLED) return@any false
+                val blocking = s.status == app.folga.domain.SwapStatus.PENDING ||
+                    s.status == app.folga.domain.SwapStatus.ACCEPTED
+                if (!blocking) return@any false
                 if (s.requesterId != targetUserId && s.targetId != targetUserId) return@any false
                 val swapDate = allFolgas.value.firstOrNull { it.id == s.fromFolgaId }?.date
                 swapDate == myFolga.date
