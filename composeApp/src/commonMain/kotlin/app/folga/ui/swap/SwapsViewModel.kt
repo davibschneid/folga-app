@@ -292,8 +292,39 @@ class SwapsViewModel(
 
     fun accept(swapId: String) {
         viewModelScope.launch {
+            // Snapshot ANTES do accept commitar — depois que `swapRepository.accept`
+            // roda, o status do swap aceito vira ACCEPTED e ele cairia fora
+            // do filtro `status == PENDING` que usamos pra encontrar irmãos.
+            // Pegando o snapshot aqui garantimos que conseguimos identificar
+            // a folga/data envolvida mesmo se o snapshot do Firestore já
+            // tiver atualizado quando formos rejeitar os irmãos.
+            val acceptedSwap = incoming.value.firstOrNull { it.id == swapId }
+            val conflictDate = acceptedSwap
+                ?.let { swap -> allFolgas.value.firstOrNull { it.id == swap.fromFolgaId }?.date }
             runCatching { swapRepository.accept(swapId) }
-                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao aceitar troca") } }
+                .onFailure { e ->
+                    _state.update { it.copy(error = e.message ?: "Erro ao aceitar troca") }
+                    return@launch
+                }
+            // Auto-rejeita as outras solicitações pendentes recebidas pelo
+            // mesmo target (eu) na mesma data: pedido do cliente — "não
+            // pode ter mais de uma solicitação de diferentes usuários
+            // para o mesmo dia". Como aceitei uma, as demais ficam
+            // implicitamente recusadas (eu não vou trabalhar dois
+            // turnos no mesmo dia). Usa `reject` (não `cancel`) porque
+            // a ação parte de mim como target. O guard PENDING dentro
+            // do `resolvePending` no Firestore garante idempotência se
+            // o requester cancelar primeiro.
+            if (conflictDate != null) {
+                val siblings = incoming.value.filter { other ->
+                    other.id != swapId &&
+                        other.status == app.folga.domain.SwapStatus.PENDING &&
+                        allFolgas.value.firstOrNull { it.id == other.fromFolgaId }?.date == conflictDate
+                }
+                siblings.forEach { sibling ->
+                    runCatching { swapRepository.reject(sibling.id) }
+                }
+            }
         }
     }
 

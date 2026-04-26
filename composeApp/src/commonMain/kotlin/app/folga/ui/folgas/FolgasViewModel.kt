@@ -57,6 +57,13 @@ data class ScheduledSwap(
     val targetPhotoUrl: String?,
     val targetShift: Shift?,
     val date: LocalDate?,
+    /**
+     * `true` se o usuário atual é o requester da troca (Dia Cedido —
+     * abriu mão do dia), `false` se é o target (Dia Assumido — vai
+     * trabalhar no lugar do colega). Usado pelo filtro "Dia Cedido /
+     * Dia Assumido" na lista de Trocas Agendadas da Home.
+     */
+    val iAmRequester: Boolean,
 )
 
 class FolgasViewModel(
@@ -121,7 +128,8 @@ class FolgasViewModel(
         outgoing,
         allFolgas,
         allUsersRaw,
-    ) { inc, out, allF, allU ->
+        currentUser,
+    ) { inc, out, allF, allU, me ->
         val userById = allU.associateBy { it.id }
         val folgaById = allF.associateBy { it.id }
         val period = currentSwapPeriod(Clock.System.now())
@@ -145,6 +153,7 @@ class FolgasViewModel(
                     targetPhotoUrl = target?.photoUrl,
                     targetShift = target?.shift,
                     date = folgaById[swap.fromFolgaId]?.date,
+                    iAmRequester = me?.id == swap.requesterId,
                 )
             }
             .sortedBy { it.date ?: LocalDate(9999, 12, 31) }
@@ -205,8 +214,18 @@ class FolgasViewModel(
         // permite criar outra. Inclui SCHEDULED (cadastrou direto),
         // SWAPPED (assumiu via troca aceita) e COMPLETED (já passou).
         // Pedido literal do cliente: "Dia de trabalho já registrado.".
+        //
+        // Defesa em profundidade: filtramos por `userId == me.id` mesmo
+        // sabendo que `folgas` já vem de `observeByUser(me.id)`. Em
+        // troca de login (Davi sai → Eric entra) a `StateFlow` pode
+        // segurar a última emissão do usuário anterior por uns
+        // milissegundos até o Firestore devolver os dados do novo
+        // usuário (`WhileSubscribed(5_000)` + factory ViewModel cacheado
+        // no `ViewModelStore`). Sem este filtro, Eric levaria
+        // "Dia de trabalho já registrado." quando tentasse cadastrar
+        // uma data que coincidisse com folga do Davi — bug reportado.
         val existing = folgas.value.any { f ->
-            f.date == date && f.status != FolgaStatus.CANCELLED
+            f.userId == me.id && f.date == date && f.status != FolgaStatus.CANCELLED
         }
         if (existing) {
             _state.update {

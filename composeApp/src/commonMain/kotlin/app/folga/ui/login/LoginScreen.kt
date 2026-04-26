@@ -44,7 +44,7 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Easy Folgas", style = MaterialTheme.typography.headlineLarge)
+        Text("EasyShift", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text("Cadastre e troque seus dias de trabalho", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(32.dp))

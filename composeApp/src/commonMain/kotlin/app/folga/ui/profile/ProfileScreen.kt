@@ -65,6 +65,7 @@ fun ProfileScreen(
     onOpenSwaps: () -> Unit,
     onOpenReports: () -> Unit,
     onOpenAdmin: (() -> Unit)? = null,
+    onLogout: () -> Unit = {},
     viewModel: ProfileViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -188,7 +189,19 @@ fun ProfileScreen(
             ShortcutsSection(
                 onOpenReports = onOpenReports,
                 onOpenAdmin = onOpenAdmin,
-                onLogout = viewModel::signOut,
+                // Encadeia signOut() + navegação explícita pra Login. O
+                // signOut é assíncrono (limpa fcmToken, chama
+                // FirebaseAuth.signOut), e o efeito reativo em App.kt
+                // que observa currentUser==null pode rodar atrasado em
+                // alguns devices — o que dava a impressão do app
+                // fechando ao invés de cair em Login. Disparar o
+                // callback de navegação aqui mesmo garante a transição
+                // instantânea (o LoginScreen já lida com auth pendente
+                // se for o caso).
+                onLogout = {
+                    viewModel.signOut()
+                    onLogout()
+                },
             )
             Spacer(Modifier.height(24.dp))
         }
