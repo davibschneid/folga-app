@@ -382,12 +382,14 @@ Android e iOS — o app funciona sem rede e sincroniza quando voltar.
 ## 8. Suporte ao usuário — perguntas frequentes
 
 ### "Por que meu botão de Solicitar troca está desabilitado?"
-Você atingiu a quota de trocas aceitas no período corrente (dia 16 ao dia
-15). O botão volta a ficar disponível quando um dos seguintes ocorre:
+Você atingiu a quota de trocas no período corrente (dia 16 ao dia 15).
+Desde o PR #37, trocas `PENDING` e `ACCEPTED` consomem quota. O botão
+volta a ficar disponível quando:
 - Começa um novo período (dia 16).
-- Uma das suas trocas aceitas no período é cancelada/revertida (hoje o
-  app não suporta cancelar troca já aceita — então, na prática, só com a
-  virada do período).
+- Uma das suas trocas `PENDING` é recusada/cancelada (libera vaga
+  imediatamente).
+- Uma troca `ACCEPTED` é revertida (hoje o app não suporta cancelar
+  troca já aceita — então, na prática, só com a virada do período).
 
 ### "Meu dia cadastrado sumiu depois que o colega aceitou a troca — é bug?"
 Não — é o comportamento esperado no modelo unidirecional. Quando você
