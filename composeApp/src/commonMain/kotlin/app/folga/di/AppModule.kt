@@ -46,7 +46,7 @@ val appModule = module {
     // fcmToken no signOut — registrado depois pra Koin resolver a ordem.
     single<AuthRepository> { FirebaseAuthRepository(get(), get(), get()) }
 
-    factory { LoginViewModel(get(), get()) }
+    factory { LoginViewModel(get(), get(), get()) }
     factory { RegisterViewModel(get()) }
     factory { CompletarCadastroViewModel(get()) }
     factory { FolgasViewModel(get(), get(), get(), get()) }

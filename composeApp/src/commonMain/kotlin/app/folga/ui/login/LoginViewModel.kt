@@ -6,6 +6,7 @@ import app.folga.auth.GoogleSignInProvider
 import app.folga.auth.GoogleSignInResult
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
+import app.folga.domain.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,7 @@ data class LoginUiState(
 class LoginViewModel(
     private val authRepository: AuthRepository,
     private val googleSignInProvider: GoogleSignInProvider,
+    private val userRepository: UserRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -43,19 +45,72 @@ class LoginViewModel(
     }
 
     /**
-     * Stub do "Esqueci minha senha" — pedido do cliente entrou no
-     * redesign do layout, mas o fluxo completo (input do e-mail +
-     * envio via `FirebaseAuth.sendPasswordResetEmail` + tela/dialog
-     * de feedback) fica como follow-up. Por enquanto só mostramos
-     * uma mensagem orientando o usuário a falar com o admin pra
-     * resetar a senha.
+     * Fluxo "Esqueci minha senha": reaproveita o e-mail digitado no
+     * campo de Login e dispara o envio do link de redefinição via
+     * `FirebaseAuth.sendPasswordResetEmail`.
+     *
+     * Gate: o e-mail precisa existir no Firestore `users`. Sem esse
+     * gate, qualquer um poderia usar o botão como oráculo pra
+     * descobrir se determinado endereço tem conta no app (o Firebase
+     * só responde com erro pra e-mails que NUNCA logaram, e ainda
+     * assim só na chamada — não vaza listagem). Bloquear pelos `users`
+     * deixa explícito que o reset é só pra quem já completou cadastro
+     * pelo app, não pra qualquer e-mail no Firebase Auth.
+     *
+     * Reset de senha não cria usuário, então mesmo que o e-mail esteja
+     * em [allowed_emails] mas ainda não tenha logado nenhuma vez, ele
+     * não vai estar em `users` — comportamento intencional, o usuário
+     * precisa concluir o cadastro/primeiro login antes.
      */
     fun onForgotPassword() {
-        _state.update {
-            it.copy(
-                error = null,
-                infoMessage = "Solicite ao administrador a redefinição da sua senha por enquanto.",
-            )
+        val email = _state.value.email.trim()
+        if (email.isBlank()) {
+            _state.update {
+                it.copy(
+                    error = "Digite seu e-mail no campo acima e toque novamente em \"Esqueci minha senha\".",
+                    infoMessage = null,
+                )
+            }
+            return
+        }
+        _state.update { it.copy(isLoading = true, error = null, infoMessage = null) }
+        viewModelScope.launch {
+            // 1) Verifica se o e-mail tem perfil no `users`. Se a leitura
+            // falhar (rede/permissão), reportamos erro genérico em vez de
+            // disparar o reset cego — assim a gente não mente "enviado"
+            // quando na verdade nem checou.
+            val existingUser = runCatching { userRepository.findByEmail(email) }
+                .getOrElse { ex ->
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            error = ex.message ?: "Erro ao verificar e-mail. Tente novamente.",
+                        )
+                    }
+                    return@launch
+                }
+            if (existingUser == null) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "E-mail não encontrado. Verifique se digitou corretamente ou solicite cadastro ao administrador.",
+                    )
+                }
+                return@launch
+            }
+            // 2) E-mail existe — pede o link de reset pro Firebase. Só
+            // mostramos sucesso se o Firebase aceitar.
+            when (val result = authRepository.sendPasswordResetEmail(email)) {
+                is AuthResult.Success -> _state.update {
+                    it.copy(
+                        isLoading = false,
+                        infoMessage = "Enviamos um e-mail com o link de redefinição. Confira sua caixa de entrada.",
+                    )
+                }
+                is AuthResult.Failure -> _state.update {
+                    it.copy(isLoading = false, error = result.message)
+                }
+            }
         }
     }
 
