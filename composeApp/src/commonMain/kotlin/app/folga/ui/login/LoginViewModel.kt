@@ -62,10 +62,10 @@ class LoginViewModel(
     fun submit() {
         val current = _state.value
         if (current.email.isBlank() || current.password.isBlank()) {
-            _state.update { it.copy(error = "Preencha email e senha") }
+            _state.update { it.copy(error = "Preencha email e senha", infoMessage = null) }
             return
         }
-        _state.update { it.copy(isLoading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null, infoMessage = null) }
         viewModelScope.launch {
             val result = authRepository.signInWithEmail(current.email.trim(), current.password)
             if (result is AuthResult.Failure) {
@@ -83,7 +83,7 @@ class LoginViewModel(
      * [AuthRepository.signInWithGoogleIdToken].
      */
     fun signInWithGoogle() {
-        _state.update { it.copy(isLoading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null, infoMessage = null) }
         viewModelScope.launch {
             when (val google = googleSignInProvider.signIn()) {
                 is GoogleSignInResult.Cancelled -> {
