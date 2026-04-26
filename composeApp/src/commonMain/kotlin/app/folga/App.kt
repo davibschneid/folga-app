@@ -61,19 +61,33 @@ private fun AppContent() {
     // mesmo lugar — o que confunde quem entrou pela Home. Guardamos a
     // tela anterior em `reportsOrigin` quando navegamos pra Reports.
     var reportsOrigin by remember { mutableStateOf<Screen>(Screen.Folgas) }
+    // Flag que sinaliza "o usuário pediu logout, estamos esperando o
+    // signOut() assíncrono propagar pro currentUser". Sem isto, o
+    // guard `loggedIn && profileComplete && screen is Login → Folgas`
+    // corre antes do `currentUser` virar null e devolve a UI pra Home,
+    // o que aparece na tela como flash Home → Login (race condition
+    // apontada pelo Devin Review no PR #46).
+    var loggingOut by remember { mutableStateOf(false) }
 
     // Auto-navigate based on auth + profile state.
     val user = currentUser
     val loggedIn = user != null
     val profileComplete = user?.isProfileComplete() == true
 
+    // Quando o signOut finalmente propaga (currentUser=null), zeramos
+    // a flag pra que logins futuros caiam de volta no fluxo normal de
+    // navegação.
+    if (!loggedIn && loggingOut) {
+        loggingOut = false
+    }
+
     if (!loggedIn && screen !is Screen.Login && screen !is Screen.Register) {
         screen = Screen.Login
     }
-    if (loggedIn && !profileComplete) {
+    if (loggedIn && !profileComplete && !loggingOut) {
         screen = Screen.CompletarCadastro
     }
-    if (loggedIn && profileComplete &&
+    if (loggedIn && profileComplete && !loggingOut &&
         (screen is Screen.Login || screen is Screen.Register || screen is Screen.CompletarCadastro)
     ) {
         screen = Screen.Folgas
@@ -128,14 +142,19 @@ private fun AppContent() {
             },
             onOpenAdmin = { screen = Screen.Admin }
                 .takeIf { user?.role == UserRole.ADMIN },
-            // Após "Sair", navegamos pra Login imediatamente. O efeito
-            // automático em `!loggedIn` cobre o caminho geral, mas o
-            // signOut é assíncrono (espera Firebase + clear de FCM
-            // token) — sem este push explícito, em alguns devices o
-            // ciclo de recomposição não conseguia "alcançar" o
-            // currentUser=null e a UI parecia fechar/voltar pra home
-            // do sistema (bug reportado).
-            onLogout = { screen = Screen.Login },
+            // Após "Sair":
+            //   1. Marca `loggingOut = true` pra suprimir o guard que
+            //      forçaria voltar pra Home enquanto o `signOut()`
+            //      assíncrono ainda não propagou `currentUser=null`.
+            //   2. Empurra `screen = Login` na hora pra evitar flash da
+            //      Home/Profile durante o intervalo até o currentUser
+            //      virar null. Quando o sign out completa (Firebase +
+            //      clearToken), o efeito de cima zera `loggingOut` e o
+            //      app fica em Login normal.
+            onLogout = {
+                loggingOut = true
+                screen = Screen.Login
+            },
         )
 
         Screen.Reports -> ReportsScreen(onBack = { screen = reportsOrigin })
