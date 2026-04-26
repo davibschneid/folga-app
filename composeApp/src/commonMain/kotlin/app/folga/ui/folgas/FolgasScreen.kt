@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -142,15 +146,49 @@ fun FolgasScreen(
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.height(8.dp))
-            if (scheduledSwaps.isEmpty()) {
+
+            // Filtro Dia Cedido / Dia Assumido. Default = ambos
+            // selecionados (= mostra tudo). Pedido do cliente: filtrar
+            // a lista do período corrente (16→15) por papel do usuário
+            // na troca. `rememberSaveable` mantém a seleção em
+            // recomposições/rotação. Ao limpar, voltamos pro default.
+            var showCedidos by rememberSaveable { mutableStateOf(true) }
+            var showAssumidos by rememberSaveable { mutableStateOf(true) }
+            val filteredScheduledSwaps = scheduledSwaps.filter { swap ->
+                (showCedidos && swap.iAmRequester) ||
+                    (showAssumidos && !swap.iAmRequester)
+            }
+            ScheduledSwapsFilterRow(
+                showCedidos = showCedidos,
+                showAssumidos = showAssumidos,
+                onToggleCedidos = {
+                    // Não deixamos zerar a seleção (sem nenhum dos dois,
+                    // a lista ficaria sempre vazia). Esconder uma
+                    // categoria só é permitido se a outra estiver ativa.
+                    if (showCedidos && !showAssumidos) return@ScheduledSwapsFilterRow
+                    showCedidos = !showCedidos
+                },
+                onToggleAssumidos = {
+                    if (showAssumidos && !showCedidos) return@ScheduledSwapsFilterRow
+                    showAssumidos = !showAssumidos
+                },
+                onClear = {
+                    showCedidos = true
+                    showAssumidos = true
+                },
+            )
+
+            Spacer(Modifier.height(8.dp))
+            if (filteredScheduledSwaps.isEmpty()) {
                 Text(
-                    "Nenhuma troca agendada.",
+                    if (scheduledSwaps.isEmpty()) "Nenhuma troca agendada."
+                    else "Nenhuma troca no filtro selecionado.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    scheduledSwaps.forEach { swap ->
+                    filteredScheduledSwaps.forEach { swap ->
                         ShiftSwapCard(
                             requesterName = swap.requesterName,
                             requesterPhotoUrl = swap.requesterPhotoUrl,
@@ -276,6 +314,56 @@ private fun RegistrarDiaCard(
                     Text("REGISTRAR")
                 }
             }
+        }
+    }
+}
+
+/**
+ * Linha de filtros pra Trocas Agendadas — separa visualmente as trocas
+ * onde o usuário cedeu o dia das que ele assumiu. Pedido do cliente:
+ * "filtrar a listagem de trocas agendadas por Dias Cedidos e Dias
+ * Assumidos". O comportamento é multi-select (default = ambos).
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ScheduledSwapsFilterRow(
+    showCedidos: Boolean,
+    showAssumidos: Boolean,
+    onToggleCedidos: () -> Unit,
+    onToggleAssumidos: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val allSelected = showCedidos && showAssumidos
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Filtrar trocas",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            // "Limpar" só aparece quando o filtro saiu do default
+            // (ambos selecionados). Se já está mostrando tudo, o botão
+            // não faria nada.
+            if (!allSelected) {
+                TextButton(onClick = onClear) { Text("Limpar") }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FilterChip(
+                selected = showCedidos,
+                onClick = onToggleCedidos,
+                label = { Text("Dia Cedido") },
+            )
+            FilterChip(
+                selected = showAssumidos,
+                onClick = onToggleAssumidos,
+                label = { Text("Dia Assumido") },
+            )
         }
     }
 }

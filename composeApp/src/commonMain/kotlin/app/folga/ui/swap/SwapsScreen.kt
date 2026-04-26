@@ -30,6 +30,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -225,11 +230,46 @@ fun SwapsScreen(
             val sortedIncoming = incoming.sortedBy(sortKey)
             val sortedOutgoing = outgoing.sortedBy(sortKey)
 
+            // Filtro de status compartilhado entre Recebidas e Enviadas.
+            // Multi-select. Default = todos os status visíveis (mesmo
+            // comportamento de antes do filtro). "Limpar filtros"
+            // restaura o default (== todos selecionados). Não persiste
+            // entre navegações (rememberSaveable mantém só durante
+            // recomposição/rotação dentro da própria tela).
+            var statusFilter by rememberSaveable(stateSaver = SwapStatusSetSaver) {
+                mutableStateOf(SwapStatus.entries.toSet())
+            }
+            val filteredIncoming = sortedIncoming.filter { it.status in statusFilter }
+            val filteredOutgoing = sortedOutgoing.filter { it.status in statusFilter }
+
             Spacer(Modifier.height(24.dp))
+            StatusFilterRow(
+                selected = statusFilter,
+                onToggle = { st ->
+                    statusFilter = if (st in statusFilter) {
+                        // Não deixamos zerar a seleção — sem nenhum
+                        // status as listas ficariam vazias e o usuário
+                        // poderia achar que perdeu dados. Botão "Limpar"
+                        // existe pra restaurar o default.
+                        (statusFilter - st).ifEmpty { statusFilter }
+                    } else {
+                        statusFilter + st
+                    }
+                },
+                onClear = { statusFilter = SwapStatus.entries.toSet() },
+            )
+
+            Spacer(Modifier.height(16.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (sortedIncoming.isEmpty()) Text("Nenhuma solicitação recebida.", style = MaterialTheme.typography.bodySmall)
-            sortedIncoming.forEach { swap ->
+            if (filteredIncoming.isEmpty()) {
+                Text(
+                    if (sortedIncoming.isEmpty()) "Nenhuma solicitação recebida."
+                    else "Nenhuma solicitação no(s) status selecionado(s).",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            filteredIncoming.forEach { swap ->
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
@@ -251,8 +291,14 @@ fun SwapsScreen(
             Spacer(Modifier.height(16.dp))
             Text("Enviadas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (sortedOutgoing.isEmpty()) Text("Nenhuma solicitação enviada.", style = MaterialTheme.typography.bodySmall)
-            sortedOutgoing.forEach { swap ->
+            if (filteredOutgoing.isEmpty()) {
+                Text(
+                    if (sortedOutgoing.isEmpty()) "Nenhuma solicitação enviada."
+                    else "Nenhuma solicitação no(s) status selecionado(s).",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            filteredOutgoing.forEach { swap ->
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
@@ -369,6 +415,72 @@ private fun UserChips(
         }
     }
 }
+
+/**
+ * Linha de filtro multi-select de status. Aplicada simultaneamente em
+ * Recebidas e Enviadas (pedido do cliente: "se aplica para as duas
+ * listagens"). FlowRow pra quebrar quando os 4 status + botão Limpar
+ * não cabem na largura.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun StatusFilterRow(
+    selected: Set<SwapStatus>,
+    onToggle: (SwapStatus) -> Unit,
+    onClear: () -> Unit,
+) {
+    val allSelected = selected.size == SwapStatus.entries.size
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Filtrar por status",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            // "Limpar" só faz sentido quando o filtro saiu do default
+            // (== todos selecionados). Quando todos já estão marcados,
+            // limpar não muda nada — escondemos pra não confundir.
+            if (!allSelected) {
+                TextButton(onClick = onClear) { Text("Limpar") }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            SwapStatus.entries.forEach { status ->
+                FilterChip(
+                    selected = status in selected,
+                    onClick = { onToggle(status) },
+                    label = { Text(swapStatusLabel(status)) },
+                )
+            }
+        }
+    }
+}
+
+private fun swapStatusLabel(status: SwapStatus): String = when (status) {
+    SwapStatus.PENDING -> "Pendente"
+    SwapStatus.ACCEPTED -> "Aceita"
+    SwapStatus.REJECTED -> "Recusada"
+    SwapStatus.CANCELLED -> "Cancelada"
+}
+
+/**
+ * Saver pro `Set<SwapStatus>` do filtro: serializa como `List<String>`
+ * (nomes do enum) — `SwapStatus` em si não é Saveable, então sem isto
+ * o `rememberSaveable` lança em runtime ao tentar salvar/restaurar.
+ */
+private val SwapStatusSetSaver: Saver<Set<SwapStatus>, List<String>> = Saver(
+    save = { set -> set.map { it.name } },
+    restore = { list ->
+        list.mapNotNull { name -> SwapStatus.entries.firstOrNull { it.name == name } }
+            .toSet()
+            .ifEmpty { SwapStatus.entries.toSet() }
+    },
+)
 
 /**
  * Wrapper que monta os parâmetros do [ShiftSwapCard] a partir do

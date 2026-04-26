@@ -54,7 +54,7 @@ class FolgaMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val title = message.notification?.title
             ?: message.data["title"]
-            ?: "Easy Folgas"
+            ?: "EasyShift"
         val body = message.notification?.body
             ?: message.data["body"]
             ?: "Você tem uma notificação"

@@ -128,6 +128,14 @@ private fun AppContent() {
             },
             onOpenAdmin = { screen = Screen.Admin }
                 .takeIf { user?.role == UserRole.ADMIN },
+            // Após "Sair", navegamos pra Login imediatamente. O efeito
+            // automático em `!loggedIn` cobre o caminho geral, mas o
+            // signOut é assíncrono (espera Firebase + clear de FCM
+            // token) — sem este push explícito, em alguns devices o
+            // ciclo de recomposição não conseguia "alcançar" o
+            // currentUser=null e a UI parecia fechar/voltar pra home
+            // do sistema (bug reportado).
+            onLogout = { screen = Screen.Login },
         )
 
         Screen.Reports -> ReportsScreen(onBack = { screen = reportsOrigin })
