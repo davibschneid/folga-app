@@ -55,6 +55,7 @@ import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.HomeHeader
 import app.folga.ui.common.MainTab
 import app.folga.ui.common.ShiftSwapCard
+import app.folga.ui.common.SwapViewerRole
 import app.folga.ui.common.formatBrazilian
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -198,6 +199,14 @@ fun FolgasScreen(
                             targetShift = swap.targetShift,
                             date = swap.date,
                             status = swap.status,
+                            // Trocas Agendadas (Home) só lista trocas
+                            // envolvendo o usuário, então `iAmRequester`
+                            // sempre define a perspectiva.
+                            viewerRole = if (swap.iAmRequester) {
+                                SwapViewerRole.REQUESTER
+                            } else {
+                                SwapViewerRole.TARGET
+                            },
                         )
                     }
                 }

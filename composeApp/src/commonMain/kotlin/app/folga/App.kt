@@ -5,6 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import app.folga.domain.AuthRepository
 import app.folga.domain.User
@@ -18,6 +19,7 @@ import app.folga.ui.register.RegisterScreen
 import app.folga.ui.reports.ReportsScreen
 import app.folga.ui.swap.SwapsScreen
 import app.folga.ui.theme.FolgaTheme
+import kotlinx.coroutines.launch
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 
@@ -56,6 +58,13 @@ private fun AppContent() {
     val authRepository = koinInject<AuthRepository>()
     val currentUser by authRepository.currentUser.collectAsState(initial = null)
     var screen by remember { mutableStateOf<Screen>(Screen.Login) }
+    // Scope estável pra logout — o `signOut` é async (limpa fcmToken
+    // do doc do user, depois chama FirebaseAuth.signOut). Se ele
+    // rodasse no `viewModelScope` do ProfileViewModel, o cancel do
+    // viewModel quando a tela sai do Composable abortava o signOut e
+    // o usuário ficava "deslogado mas logado" — App.kt nunca via
+    // `currentUser == null` e o redirect pra Login não disparava.
+    val appScope = rememberCoroutineScope()
     // Reports pode ser aberto da Home (atalho no header) ou do Perfil
     // (item da lista). Sem rastrear a origem, o "voltar" sempre cai no
     // mesmo lugar — o que confunde quem entrou pela Home. Guardamos a
@@ -128,14 +137,21 @@ private fun AppContent() {
             },
             onOpenAdmin = { screen = Screen.Admin }
                 .takeIf { user?.role == UserRole.ADMIN },
-            // Após "Sair", navegamos pra Login imediatamente. O efeito
-            // automático em `!loggedIn` cobre o caminho geral, mas o
-            // signOut é assíncrono (espera Firebase + clear de FCM
-            // token) — sem este push explícito, em alguns devices o
-            // ciclo de recomposição não conseguia "alcançar" o
-            // currentUser=null e a UI parecia fechar/voltar pra home
-            // do sistema (bug reportado).
-            onLogout = { screen = Screen.Login },
+            // Logout: dispara o signOut no `appScope` (escopo do App,
+            // não do ViewModel). NÃO setamos `screen = Login` aqui:
+            // a auto-redirect logic (`!loggedIn && screen !is Login`)
+            // pega isso assim que o `currentUser` vira null.
+            //
+            // Por que não setar o screen direto? Se navegássemos pra
+            // Login enquanto `currentUser` ainda fosse não-null (o
+            // signOut ainda estava em flight), o bloco
+            // `loggedIn && profileComplete && screen is Login`
+            // logo abaixo bumparia de volta pra Folgas — o usuário
+            // via um "flicker" pra Folgas e em alguns devices a UI
+            // parecia travar nesse estado.
+            onLogout = {
+                appScope.launch { authRepository.signOut() }
+            },
         )
 
         Screen.Reports -> ReportsScreen(onBack = { screen = reportsOrigin })

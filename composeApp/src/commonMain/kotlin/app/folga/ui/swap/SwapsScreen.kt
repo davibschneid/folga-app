@@ -49,6 +49,7 @@ import app.folga.domain.User
 import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.MainTab
 import app.folga.ui.common.ShiftSwapCard
+import app.folga.ui.common.SwapViewerRole
 import app.folga.ui.common.formatBrazilian
 import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
@@ -274,6 +275,8 @@ fun SwapsScreen(
                     swap = swap,
                     users = users,
                     folgas = allFolgas,
+                    // Recebidas: o viewer é sempre o target da troca.
+                    viewerRole = SwapViewerRole.TARGET,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             // Espaçamento entre os botões vem do
@@ -303,6 +306,8 @@ fun SwapsScreen(
                     swap = swap,
                     users = users,
                     folgas = allFolgas,
+                    // Enviadas: o viewer é sempre o requester da troca.
+                    viewerRole = SwapViewerRole.REQUESTER,
                     actions = {
                         if (swap.status == SwapStatus.PENDING) {
                             OutlinedButton(onClick = { viewModel.cancel(swap.id) }) { Text("Cancelar") }
@@ -463,7 +468,10 @@ private fun StatusFilterRow(
 
 private fun swapStatusLabel(status: SwapStatus): String = when (status) {
     SwapStatus.PENDING -> "Pendente"
-    SwapStatus.ACCEPTED -> "Aceita"
+    // "Confirmada" alinha com o badge na home (StatusBadge.kt) — usar
+    // "Aceita" no filtro confundia o usuário porque não batia com o
+    // texto verde mostrado no card.
+    SwapStatus.ACCEPTED -> "Confirmada"
     SwapStatus.REJECTED -> "Recusada"
     SwapStatus.CANCELLED -> "Cancelada"
 }
@@ -494,6 +502,7 @@ private fun SwapCardWithActions(
     swap: SwapRequest,
     users: List<User>,
     folgas: List<Folga>,
+    viewerRole: SwapViewerRole,
     actions: @Composable () -> Unit,
 ) {
     val requester = users.firstOrNull { it.id == swap.requesterId }
@@ -508,6 +517,7 @@ private fun SwapCardWithActions(
         targetShift = target?.shift,
         date = date,
         status = swap.status,
+        viewerRole = viewerRole,
         // ShiftSwapCard já envelopa as actions num Row próprio (em
         // linha separada do badge) com spacedBy(8.dp), então só
         // precisamos passar as ações cruas — sem Row extra.

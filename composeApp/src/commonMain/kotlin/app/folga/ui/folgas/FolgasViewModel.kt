@@ -236,6 +236,34 @@ class FolgasViewModel(
             }
             return
         }
+        // Bloqueia duplicata via troca: se o usuário tem uma troca
+        // ACEITA (ACCEPTED) envolvendo essa data — como requester ou
+        // target — ele já tem compromisso pra esse dia, mesmo que a
+        // folga em si não apareça em `folgas` (caso típico: requester
+        // que cedeu o dia via swap aceito; após aceite, a folga muda
+        // de dono pra o target e some da listagem do requester. Sem
+        // esta checagem, o requester conseguiria cadastrar um novo
+        // dia de trabalho na mesma data e ficaria com agenda
+        // duplicada).
+        //
+        // Pendentes (PENDING) NÃO entram aqui porque o requester
+        // ainda mantém a folga original — o bloqueio do `existing`
+        // acima já cobre. CANCELLED e REJECTED não são compromisso
+        // ativo.
+        val swappedDate = (incoming.value + outgoing.value)
+            .filter { it.status == SwapStatus.ACCEPTED }
+            .any { swap ->
+                allFolgas.value.firstOrNull { it.id == swap.fromFolgaId }?.date == date
+            }
+        if (swappedDate) {
+            _state.update {
+                it.copy(
+                    error = "Você já tem uma troca agendada para a data informada.",
+                    successMessage = null,
+                )
+            }
+            return
+        }
         _state.update { it.copy(isLoading = true, error = null, successMessage = null) }
         viewModelScope.launch {
             runCatching {
