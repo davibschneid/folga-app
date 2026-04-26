@@ -41,7 +41,7 @@ fallback (leitura defensiva no Firestore).
 > domínio/persistência (`Folga`, `folgas/{id}`) mantém o nome antigo para
 > evitar reescrever dados existentes no Firestore.
 
-### 2.1 Cadastrar dia de trabalho ✅ (PR #1)
+### 2.1 Cadastrar dia de trabalho ✅ (PR #1, PR #39, PR #41)
 Usuário escolhe uma data via calendário (Material3 DatePicker, formato
 visual DD/MM/AAAA) e opcionalmente uma observação. O dia é criado em
 `folgas/{id}` com:
@@ -50,6 +50,17 @@ visual DD/MM/AAAA) e opcionalmente uma observação. O dia é criado em
 - `date`: data escolhida
 - `status`: `SCHEDULED`
 - `note`: observação opcional
+
+**Validações no cadastro:**
+- **Data mínima D+1** (PR #39): só é possível cadastrar a partir de
+  amanhã. O DatePicker desabilita visualmente datas anteriores e o
+  `FolgasViewModel.reserve()` rejeita com a mensagem _"Selecione uma
+  data a partir de amanhã."_ Evita cadastrar retroativo ou "hoje" (dia
+  já em curso).
+- **Sem duplicata na mesma data** (PR #41): se o usuário já tem uma
+  folga ativa (`status != CANCELLED`) na data escolhida, o `reserve()`
+  bloqueia com a mensagem _"Dia de trabalho já registrado."_ Evita o
+  mesmo dia aparecer 2× na lista.
 
 ### 2.2 Status
 - `SCHEDULED` — cadastrada, ainda válida
@@ -61,6 +72,19 @@ visual DD/MM/AAAA) e opcionalmente uma observação. O dia é criado em
 Só o dono do dia pode cancelar. Só é possível cancelar dias em
 `SCHEDULED`. A operação é transacional no Firestore para evitar corrida
 com `accept()` de uma troca que estava mirando nesse dia.
+
+### 2.4 Marcação visual "Aguardando" em dia com troca pendente ✅ (PR #41)
+Na tela **Trocar dia de trabalho**, na lista "Meus dias cadastrados":
+se o dia está como `fromFolgaId` de uma troca `PENDING` aberta pelo
+usuário, a chip recebe o sufixo " · Aguardando" em laranja e fica
+`enabled = false` (não é mais selecionável). Evita o usuário tentar
+abrir uma 2ª troca pra um dia que já tem solicitação em aberto.
+
+Pra reforçar (defesa em profundidade), `SwapsViewModel.requestSwap()`
+rejeita a submissão se a folga selecionada estiver no
+`folgaIdsAwaiting.value` (PR #42), com a mensagem _"Esse dia já tem
+uma troca pendente."_ Cobre o caso onde o estado da UI estava stale
+(ex.: `outgoing` ainda não carregou do Firestore).
 
 ## 3. Trocas de dia de trabalho
 
@@ -90,10 +114,10 @@ apenas assume o dia que o solicitante cadastrou.
   continuam legíveis no Firestore — o campo é ignorado e apenas a
   folga do solicitante é considerada.
 
-### 3.2 Quota de trocas por período ✅ (PR #9)
+### 3.2 Quota de trocas por período ✅ (PR #9, PR #37)
 
-> **Regra:** cada usuário tem um número máximo de trocas *aceitas* que ele
-> pode ter **iniciado** dentro de um período de contagem.
+> **Regra:** cada usuário tem um número máximo de trocas *consumidoras de
+> quota* que ele pode ter **iniciado** dentro de um período de contagem.
 
 | Turno       | Quota por período |
 | ----------- | ----------------- |
@@ -101,9 +125,10 @@ apenas assume o dia que o solicitante cadastrou.
 | `TARDE`     | 4                 |
 | `NOITE`     | 3                 |
 
-**O que conta:**
-- **Só trocas aceitas.** Trocas `PENDING`, `REJECTED` ou `CANCELLED` **não**
-  consomem quota.
+**O que conta (atualizado em PR #37):**
+- **Trocas `PENDING` e `ACCEPTED`** consomem quota — o pendente já
+  ocupa a vaga até ser resolvido. `REJECTED` e `CANCELLED` **não**
+  consomem.
 - **Só quem iniciou** (o `requesterId`). O alvo (`targetId`) **não**
   consome quota da própria conta — mesmo aceitando uma troca, o alvo pode
   iniciar livremente as próprias trocas no período.
@@ -128,7 +153,31 @@ pra `createdAt` como fallback.
 - A quota agora **bloqueia** a solicitação (antes era aviso
   não-bloqueante).
 
-### 3.3 Restrição por grupo de turno ✅ (PR #23)
+### 3.3 Validação de conflito do alvo ✅ (PR #37, PR #39, PR #40)
+
+> **Regra:** um colega não pode aceitar uma troca pra um dia em que ele
+> já tem outro compromisso. O app valida isso na hora de abrir a troca
+> (não deixa nem submeter).
+
+**O que bloqueia uma solicitação A→B pra a data X:**
+- **Folga ativa de B em X** (`status != CANCELLED` — inclui SCHEDULED
+  e SWAPPED). Se B já tem o próprio dia cadastrado nessa data ou já
+  assumiu via outra troca aceita, ele não pode aceitar uma 2ª troca
+  pro mesmo dia.
+- **Troca `PENDING` ou `ACCEPTED` envolvendo B em X** (B como
+  requester ou target). `PENDING` é compromisso vivo aguardando
+  aceite; `ACCEPTED` já está confirmado. `REJECTED` e `CANCELLED`
+  **não** contam — recusa não é compromisso real, e cancelada foi
+  desfeita explicitamente (PR #40 ajustou esse comportamento).
+
+Mensagem exibida: _"O colega selecionado já tem um agendamento ou
+troca em aberto para essa data e não pode assumir a solicitação."_
+
+A validação é feita no `SwapsViewModel.requestSwap()` antes de chamar
+o backend. Não está nas Firestore rules (precisaria de query de
+coleção, não suportado em rules) — o gate é só client-side.
+
+### 3.4 Restrição por grupo de turno ✅ (PR #23)
 
 > **Regra:** só é possível trocar com colegas do mesmo **grupo de turno**.
 > `MANHA` e `TARDE` formam o grupo **diurno** (podem trocar entre si);
@@ -151,7 +200,7 @@ a escala real de trabalho.
   antes de aceitar o doc. Isso bloqueia mesmo um cliente malicioso que
   contorne a UI.
 
-### 3.4 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
+### 3.5 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
 
 > **Regra pretendida:** usuários do turno `NOITE` não podem trabalhar mais
 > de 2 noites seguidas.
@@ -298,13 +347,39 @@ service cloud.firestore {
 > que esse doc existe é que `isAdmin()` nas regras passa a retornar
 > `true`.
 
-## 5. Telemetria e dados
+## 5. Notificações push ✅ (PR #33, PR #34)
 
-Tudo persistido no Firestore (`users`, `folgas`, `swaps`). O Firestore tem
-persistência offline nativa no Android e iOS — o app funciona sem rede e
-sincroniza quando voltar.
+Quando uma troca é criada (`/swaps/{id}` com `status = PENDING`), uma
+**Cloud Function** (`functions/index.js`) dispara uma notificação via
+Firebase Cloud Messaging (FCM) pro device do `targetId`. O token FCM
+do dispositivo é gravado em `users/{uid}.fcmToken` no signin (Android
+via `FcmTokenSyncer` + `FolgaMessagingService`) e limpo no signout pra
+não notificar usuário deslogado.
 
-## 6. Suporte ao usuário — perguntas frequentes
+No iOS o stub está no-op — push real só funciona em Android hoje.
+
+## 6. UX e ordenação de listas ✅ (PR #43, PR #44)
+
+Todas as listas com data são ordenadas por data ascendente (próxima
+a acontecer primeiro):
+
+- Home → **Trocas agendadas** (`FolgasViewModel.scheduledSwaps`)
+- Home → **Meus dias cadastrados** (`FolgasScreen.myScheduled`)
+- Trocas → **Meus dias cadastrados** (chips de seleção)
+- Trocas → **Recebidas** / **Enviadas**
+
+O **status badge** (`StatusBadge`) usa cores fixas:
+`AGUARDANDO` laranja, `CONFIRMADA` verde, `RECUSADA` vermelha,
+`CANCELADA` cinza. Reduzido em PR #43 pra ocupar menos altura no
+rodapé do card de troca.
+
+## 7. Telemetria e dados
+
+Tudo persistido no Firestore (`users`, `folgas`, `swaps`,
+`allowed_emails`). O Firestore tem persistência offline nativa no
+Android e iOS — o app funciona sem rede e sincroniza quando voltar.
+
+## 8. Suporte ao usuário — perguntas frequentes
 
 ### "Por que meu botão de Solicitar troca está desabilitado?"
 Você atingiu a quota de trocas aceitas no período corrente (dia 16 ao dia
@@ -336,8 +411,29 @@ fez login pela primeira vez com um dos e-mails listados em
 O turno define quantas trocas por período você pode fazer e — no futuro —
 a regra de plantões seguidos do noturno.
 
+### "Tentei cadastrar um dia e o app disse 'Dia de trabalho já registrado'."
+Você já tem uma folga ativa nessa data (SCHEDULED ou SWAPPED). Cancele
+a existente em **Meus dias cadastrados** ou escolha outra data. Datas
+em `CANCELLED` não bloqueiam novo cadastro.
+
+### "Não consigo selecionar a data de hoje pra cadastrar."
+É por desenho — o cadastro só permite a partir de amanhã (D+1). Não
+dá pra trocar o turno de um dia que já está em curso.
+
+### "O chip de um dia ficou cinza com 'Aguardando' do lado."
+Esse dia já tem uma troca pendente que você abriu. Aguarde o colega
+aceitar/recusar (ou cancele a troca em **Enviadas**) pra liberar o dia
+pra uma nova solicitação.
+
+### "Por que minha quota baixou se a troca ainda está pendente?"
+Desde o PR #37, trocas `PENDING` também consomem quota — o pendente
+já ocupa a vaga até ser resolvido. Se for recusada/cancelada a vaga
+volta, se for aceita continua consumindo.
+
 ---
 
-Última atualização: rename para "dia de trabalho", bloco "Trocas
-agendadas" na tela inicial, quota passa a ser bloqueante + exibida como
-"trocas restantes".
+Última atualização: D+1 mínimo no cadastro, bloqueio de duplicata,
+badge "Aguardando" em chips com troca pendente, validação de conflito
+do alvo (folga + trocas PENDING/ACCEPTED), defesa em profundidade no
+`requestSwap`, listas ordenadas por data, push notifications via
+FCM/Cloud Functions.
