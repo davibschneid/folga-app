@@ -318,6 +318,29 @@ class FirebaseAuthRepository(
         AuthResult.Success(updated)
     }.getOrElse { AuthResult.Failure(it.message ?: "Erro ao salvar foto de perfil") }
 
+    override suspend fun sendPasswordResetEmail(email: String): AuthResult = runCatching {
+        // Mantém o contrato: o gate "tem doc no users" é responsabilidade
+        // do caller (LoginViewModel). Aqui só repassamos pro Firebase Auth
+        // e mapeamos exceções pra mensagem humana.
+        auth.sendPasswordResetEmail(email.trim())
+        // O sealed AuthResult.Success exige um User; como esse fluxo não
+        // identifica usuário (não há sessão), devolvemos um stub vazio só
+        // pra sinalizar sucesso. O LoginViewModel ignora o `user` em caso
+        // de sucesso desse caminho — só lê o tipo Success/Failure.
+        AuthResult.Success(
+            User(
+                id = "",
+                email = email.trim(),
+                name = "",
+                registrationNumber = "",
+                team = "",
+                shift = Shift.MANHA,
+                role = UserRole.USER,
+                createdAt = Clock.System.now(),
+            )
+        )
+    }.getOrElse { AuthResult.Failure(it.humanMessage("Erro ao enviar e-mail de redefinição")) }
+
     override suspend fun signOut() {
         // Limpa o `fcmToken` do doc do usuário ANTES de fazer signOut
         // no Firebase Auth. Ordem importa: depois do signOut, a regra

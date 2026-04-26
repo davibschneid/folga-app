@@ -121,6 +121,18 @@ interface AuthRepository {
     suspend fun updatePhotoUrl(url: String?): AuthResult
 
     suspend fun signOut()
+
+    /**
+     * Dispara o e-mail de reset de senha do Firebase Auth pra [email].
+     * Pré-condição: o e-mail precisa existir como doc no `users` (gate
+     * aplicado pelo [LoginViewModel] antes de chamar) — assim a gente
+     * evita usar o reset como oráculo de "esse e-mail tem conta?".
+     *
+     * Retorna [AuthResult.Success] (com um User dummy só pra reaproveitar
+     * o sealed type) quando o Firebase aceitou o pedido. Sucesso aqui
+     * só significa "e-mail enfileirado", não que o usuário leu/clicou.
+     */
+    suspend fun sendPasswordResetEmail(email: String): AuthResult
 }
 
 /**
