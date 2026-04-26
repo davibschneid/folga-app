@@ -46,7 +46,10 @@ val appModule = module {
     // fcmToken no signOut — registrado depois pra Koin resolver a ordem.
     single<AuthRepository> { FirebaseAuthRepository(get(), get(), get()) }
 
-    factory { LoginViewModel(get(), get(), get()) }
+    // LoginViewModel recebe AllowedEmailRepository pra gate do
+    // "Esqueci minha senha" — não pode usar UserRepository porque a
+    // rule do `users` exige `isSignedIn()` e esse fluxo é deslogado.
+    factory { LoginViewModel(get(), get(), get<AllowedEmailRepository>()) }
     factory { RegisterViewModel(get()) }
     factory { CompletarCadastroViewModel(get()) }
     factory { FolgasViewModel(get(), get(), get(), get()) }
