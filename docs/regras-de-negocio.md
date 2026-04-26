@@ -440,7 +440,7 @@ service cloud.firestore {
 > que esse doc existe é que `isAdmin()` nas regras passa a retornar
 > `true`.
 
-## 4.5 Logout estável ✅ (PR #46, PR #51)
+### 4.5 Logout estável ✅ (PR #46, PR #51)
 
 O botão **Sair** fica em **Perfil → Lista de atalhos**. Ao clicar:
 
