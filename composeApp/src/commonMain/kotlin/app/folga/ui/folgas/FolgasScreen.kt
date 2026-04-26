@@ -86,7 +86,12 @@ fun FolgasScreen(
     val scheduledSwaps by viewModel.scheduledSwaps.collectAsStateWithLifecycle()
     val pendingCount by viewModel.pendingIncomingCount.collectAsStateWithLifecycle()
     val folgas by viewModel.folgas.collectAsStateWithLifecycle()
-    val myScheduled = folgas.filter { it.status == FolgaStatus.SCHEDULED }
+    // Ordena os dias cadastrados por data (ascendente — próximo
+    // primeiro). Pedido do cliente pra a lista "Meus dias cadastrados"
+    // ficar em ordem cronológica em vez da ordem de inserção.
+    val myScheduled = folgas
+        .filter { it.status == FolgaStatus.SCHEDULED }
+        .sortedBy { it.date }
 
     Scaffold(
         topBar = {
