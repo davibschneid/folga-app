@@ -17,6 +17,14 @@ data class LoginUiState(
     val password: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
+    /**
+     * Mensagem informativa (não-erro) exibida abaixo dos campos —
+     * usado pelo link "Esqueci minha senha" enquanto o fluxo de reset
+     * por e-mail não está implementado. Mantido separado de `error`
+     * pra UI poder colorir cada um do jeito certo (azul royal pra info,
+     * vermelho pra erro).
+     */
+    val infoMessage: String? = null,
 )
 
 class LoginViewModel(
@@ -27,8 +35,29 @@ class LoginViewModel(
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
 
-    fun onEmailChange(value: String) = _state.update { it.copy(email = value, error = null) }
-    fun onPasswordChange(value: String) = _state.update { it.copy(password = value, error = null) }
+    fun onEmailChange(value: String) = _state.update {
+        it.copy(email = value, error = null, infoMessage = null)
+    }
+    fun onPasswordChange(value: String) = _state.update {
+        it.copy(password = value, error = null, infoMessage = null)
+    }
+
+    /**
+     * Stub do "Esqueci minha senha" — pedido do cliente entrou no
+     * redesign do layout, mas o fluxo completo (input do e-mail +
+     * envio via `FirebaseAuth.sendPasswordResetEmail` + tela/dialog
+     * de feedback) fica como follow-up. Por enquanto só mostramos
+     * uma mensagem orientando o usuário a falar com o admin pra
+     * resetar a senha.
+     */
+    fun onForgotPassword() {
+        _state.update {
+            it.copy(
+                error = null,
+                infoMessage = "Solicite ao administrador a redefinição da sua senha por enquanto.",
+            )
+        }
+    }
 
     fun submit() {
         val current = _state.value
