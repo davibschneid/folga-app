@@ -30,16 +30,20 @@ fun StatusBadge(
         SwapStatus.REJECTED -> "RECUSADA" to Color(0xFFE53935)
         SwapStatus.CANCELLED -> "CANCELADA" to Color(0xFF757575)
     }
+    // Badge mais compacto: padding vertical 6 → 2 e horizontal 12 → 8
+    // (reduz altura sem cortar o texto), corner 16 → 12 acompanhando
+    // a nova altura, fontSize 11 → 10. Pedido do cliente pra ocupar
+    // menos espaço no rodapé do card.
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = color,
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             color = Color.White,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
         )
     }

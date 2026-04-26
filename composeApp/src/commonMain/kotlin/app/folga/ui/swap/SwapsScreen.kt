@@ -45,6 +45,7 @@ import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.MainTab
 import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.formatBrazilian
+import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -204,11 +205,26 @@ fun SwapsScreen(
             // minhas) pra a data resolver corretamente em incoming
             // (fromFolgaId é do requester) e em outgoing já aceita (a
             // folga foi transferida pro target).
+            // Ordenamos Recebidas e Enviadas pela data da folga em
+            // questão (ascendente — a próxima a acontecer primeiro).
+            // A data vem de `allFolgas` via `fromFolgaId`. Trocas
+            // sem folga resolvida (fromFolgaId não está em allFolgas)
+            // ficam no fim — usamos uma data sentinel bem distante,
+            // mesmo padrão do `FolgasViewModel.byDateOnly`. Sem o
+            // sentinel, `sortedBy` colocaria os nulls no início porque
+            // `compareValues` trata null como < qualquer não-null.
+            val folgaDateById = allFolgas.associate { it.id to it.date }
+            val sortKey: (SwapRequest) -> LocalDate = { swap ->
+                folgaDateById[swap.fromFolgaId] ?: LocalDate(9999, 12, 31)
+            }
+            val sortedIncoming = incoming.sortedBy(sortKey)
+            val sortedOutgoing = outgoing.sortedBy(sortKey)
+
             Spacer(Modifier.height(24.dp))
             Text("Recebidas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (incoming.isEmpty()) Text("Nenhuma solicitação recebida.", style = MaterialTheme.typography.bodySmall)
-            incoming.forEach { swap ->
+            if (sortedIncoming.isEmpty()) Text("Nenhuma solicitação recebida.", style = MaterialTheme.typography.bodySmall)
+            sortedIncoming.forEach { swap ->
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
@@ -230,8 +246,8 @@ fun SwapsScreen(
             Spacer(Modifier.height(16.dp))
             Text("Enviadas", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            if (outgoing.isEmpty()) Text("Nenhuma solicitação enviada.", style = MaterialTheme.typography.bodySmall)
-            outgoing.forEach { swap ->
+            if (sortedOutgoing.isEmpty()) Text("Nenhuma solicitação enviada.", style = MaterialTheme.typography.bodySmall)
+            sortedOutgoing.forEach { swap ->
                 SwapCardWithActions(
                     swap = swap,
                     users = users,
