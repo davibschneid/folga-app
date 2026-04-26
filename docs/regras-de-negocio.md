@@ -7,12 +7,38 @@ entrou (quando aplicável).
 
 ## 1. Cadastro e perfil de usuário
 
-### 1.1 Login ✅ (PR #2, PR #8)
+### 1.1 Login ✅ (PR #2, PR #8, PR #47, PR #49, PR #50)
 - Permitido apenas via **e-mail/senha** (Firebase Auth) ou **Google Sign-In**.
 - Após o sign-up com Google, o usuário é direcionado à tela **Completar
   cadastro** para preencher dados que o Google não fornece (matrícula,
   equipe, turno).
 - Autenticação fica em `Authentication → Users` no Firebase Console.
+- **Layout (PR #47):** tela com gradient de fundo, formas decorativas,
+  campos arredondados e botões de 56dp. Mantém o branding do app
+  ("EasyShift") e separa "Entrar com Google" do botão principal.
+
+### 1.1.1 Esqueci minha senha ✅ (PR #49, PR #50)
+
+> **Regra:** o usuário pode redefinir a senha pelo fluxo padrão do
+> Firebase (e-mail com link de redefinição). Para evitar enumeração de
+> e-mails cadastrados, o app só dispara o envio se o e-mail estiver na
+> whitelist (`allowed_emails`).
+
+- Link **"Esqueci minha senha"** abaixo do botão de login.
+- Ao clicar, o app pede o e-mail e chama
+  `FirebaseAuthRepository.sendPasswordResetEmail(email)`.
+- **Gate:** antes de chamar o Firebase, valida que o e-mail está em
+  `allowed_emails` (não em `users` — o doc do `users` exige
+  `request.auth != null` nas Firestore rules; `allowed_emails` tem
+  `get` público pra esse cenário).
+- Mensagens:
+  - Sucesso: _"Se este e-mail estiver cadastrado, você receberá um
+    link de redefinição."_ (mesma resposta pra qualquer e-mail —
+    evita confirmar se a conta existe).
+  - Erro de rede ou Firebase: _"Erro ao enviar e-mail de
+    redefinição."_
+- O envio efetivo do e-mail (template, idioma, sender) é configurado
+  em **Firebase Console → Authentication → Templates**.
 
 ### 1.2 Campos do perfil ✅ (PR #3, PR #8)
 Armazenados em `users/{uid}` no Firestore:
@@ -61,6 +87,13 @@ visual DD/MM/AAAA) e opcionalmente uma observação. O dia é criado em
   folga ativa (`status != CANCELLED`) na data escolhida, o `reserve()`
   bloqueia com a mensagem _"Dia de trabalho já registrado."_ Evita o
   mesmo dia aparecer 2× na lista.
+- **Sem troca aceita na mesma data** (PR #51): se o usuário já tem uma
+  troca `ACCEPTED` envolvendo a data escolhida (como requester ou
+  target — o caso típico é o requester que cedeu o dia: a folga muda
+  de dono pro target e some da listagem dele), o `reserve()` bloqueia
+  com a mensagem _"Você já tem uma troca agendada para a data
+  informada."_ Evita compromisso duplicado quando a folga em si não
+  aparece mais em "Meus dias cadastrados".
 
 ### 2.2 Status
 - `SCHEDULED` — cadastrada, ainda válida
@@ -200,7 +233,67 @@ a escala real de trabalho.
   antes de aceitar o doc. Isso bloqueia mesmo um cliente malicioso que
   contorne a UI.
 
-### 3.5 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
+### 3.5 Aceitar troca + auto-recusa de irmãs ✅ (PR #46)
+
+> **Regra:** quando o usuário aceita uma troca, qualquer outra troca
+> recebida (`incoming`) `PENDING` apontando para a **mesma data** é
+> automaticamente recusada — o usuário não pode trabalhar dois turnos
+> no mesmo dia.
+
+Implementado em `SwapsViewModel.accept(swapId)`:
+1. Snapshot da troca aceita **antes** do commit (depois do `accept`,
+   o `status` vira `ACCEPTED` e a troca cairia fora do filtro
+   `PENDING`).
+2. Resolve a `conflictDate` via `allFolgas` + `fromFolgaId`.
+3. Após o `accept` rodar com sucesso, percorre `incoming` e chama
+   `swapRepository.reject(siblingId)` em cada troca pendente que cai
+   na mesma data.
+4. Idempotência: o guard `PENDING` dentro do `resolvePending` no
+   Firestore garante que se o requester cancelar primeiro, o
+   `reject` é no-op.
+
+A ação é silenciosa — não há prompt nem mensagem. As trocas
+auto-recusadas aparecem como `REJECTED` na lista do solicitante.
+
+### 3.6 Filtros de status nas listas ✅ (PR #46, PR #51)
+
+A tela **Trocar dia de trabalho** tem um filtro multi-select por
+status (compartilhado entre Recebidas e Enviadas) com chips: `Pendente`,
+`Confirmada`, `Recusada`, `Cancelada`.
+
+- Default: todos selecionados (mesma listagem de antes do filtro).
+- Não deixamos zerar a seleção (sem nenhum status as listas ficariam
+  vazias). O botão **Limpar filtros** restaura o default.
+- Estado é mantido só durante a sessão da tela
+  (`rememberSaveable` cobre rotação/recomposição, não persiste
+  entre navegações).
+- O label "Aceita" foi renomeado para **"Confirmada"** em PR #51 pra
+  alinhar com o badge verde mostrado no card.
+
+### 3.7 Copy dos cards de troca ✅ (PR #51)
+
+A linha descritiva de cada `ShiftSwapCard` é montada por
+`swapDescription(status, requesterName, targetName, date, viewerRole)`
+em `composeApp/src/commonMain/kotlin/app/folga/ui/common/ShiftSwapCard.kt`.
+
+`viewerRole` define a perspectiva do usuário olhando o card:
+- `REQUESTER` — quando o viewer é quem **iniciou** a troca (Enviadas;
+  ou Home se `iAmRequester`).
+- `TARGET` — quando o viewer é quem **recebeu** o pedido (Recebidas;
+  ou Home se não-requester).
+- `null` — fallback neutro (3ª pessoa) usado em listagens admin.
+
+| Status     | Perspectiva REQUESTER                                    | Perspectiva TARGET                                         |
+| ---------- | -------------------------------------------------------- | ---------------------------------------------------------- |
+| PENDING    | _Aguardando o usuário **\<target\>**_                    | _Aguardando sua resposta — **\<requester\>** pediu o dia X_ |
+| ACCEPTED   | _**\<target\>** aceitou trabalhar para você no dia X_    | _Você aceitou trabalhar para **\<requester\>** no dia X_   |
+| REJECTED   | _Proposta recusada por **\<target\>** no dia X_          | _Você recusou a proposta de **\<requester\>** no dia X_    |
+| CANCELLED  | _Você cancelou o trabalho agendado (X)_                  | _**\<requester\>** cancelou o trabalho agendado (X)_       |
+
+`CANCELLED` só é alcançável pelo requester (regra de negócio +
+Firestore rules), então a perspectiva é determinística.
+
+### 3.8 Regra de 2 plantões seguidos (NOITE) 🚧 (pendente)
 
 > **Regra pretendida:** usuários do turno `NOITE` não podem trabalhar mais
 > de 2 noites seguidas.
@@ -347,6 +440,31 @@ service cloud.firestore {
 > que esse doc existe é que `isAdmin()` nas regras passa a retornar
 > `true`.
 
+## 4.5 Logout estável ✅ (PR #46, PR #51)
+
+O botão **Sair** fica em **Perfil → Lista de atalhos**. Ao clicar:
+
+1. O `App.kt` (em `rememberCoroutineScope()`) chama
+   `authRepository.signOut()` — escopo estável, **não** o
+   `viewModelScope` do `ProfileViewModel`.
+2. `signOut` limpa o `fcmToken` em `users/{uid}` (pra não vazar
+   notificação pra ex-usuário do device) e chama
+   `FirebaseAuth.signOut()`.
+3. `manualUser.value = null` → `currentUser` vira `null`.
+4. A auto-redirect em `App.kt` (`!loggedIn && screen !is Login &&
+   screen !is Register`) leva o usuário pra Login.
+
+**Por que não setar `screen = Login` direto no callback do botão?**
+Se a navegação acontecesse antes do `currentUser` virar `null`, o
+bloco `if (loggedIn && profileComplete && screen is Login) screen =
+Folgas` (logo abaixo na auto-redirect) bumparia o usuário de volta
+pra Folgas — efeito de "flicker" reportado no PR #46/#51.
+
+**Por que `viewModelScope` não funcionava?** O ProfileViewModel é
+destruído quando o `ProfileScreen` sai do Composable. Se o `signOut`
+estava launched no `viewModelScope`, ele era cancelado no meio —
+`auth.signOut()` nunca rodava e o `currentUser` ficava não-null.
+
 ## 5. Notificações push ✅ (PR #33, PR #34)
 
 Quando uma troca é criada (`/swaps/{id}` com `status = PENDING`), uma
@@ -432,10 +550,35 @@ Desde o PR #37, trocas `PENDING` também consomem quota — o pendente
 já ocupa a vaga até ser resolvido. Se for recusada/cancelada a vaga
 volta, se for aceita continua consumindo.
 
+### "Esqueci minha senha — como redefino?"
+Na tela de Login tem o link **"Esqueci minha senha"** abaixo do
+botão de entrar. Informe o e-mail; se ele estiver autorizado, o
+Firebase manda um link de redefinição na sua caixa. Confira o
+spam/lixo eletrônico. Se o e-mail não chegou, peça ao admin pra
+confirmar se está na lista de e-mails autorizados.
+
+### "Aceitei uma troca e outra solicitação que eu tinha foi marcada como Recusada — por quê?"
+Desde o PR #46, ao aceitar uma troca o app **automaticamente recusa**
+qualquer outra solicitação `PENDING` que você tenha recebido pra a
+**mesma data** — você não pode trabalhar dois turnos no mesmo dia. As
+trocas afetadas aparecem como `RECUSADA` na lista do solicitante; ele
+pode tentar com outro colega.
+
+### "Tentei cadastrar um dia e o app disse 'Você já tem uma troca agendada para a data informada'."
+Você tem uma troca já **aceita** (status `Confirmada`) envolvendo essa
+data — como solicitante ou como colega que assumiu. Cadastrar um novo
+dia geraria compromisso duplicado. Confira a seção **Trocas agendadas**
+na tela inicial.
+
+### "Saí (Sair) e o app voltou pra Home em vez da tela de Login."
+Era um bug do `signOut` rodando em escopo de tela; corrigido nos PRs
+#46/#51. Se acontecer de novo, force o fechamento do app pelas
+configurações do Android — provavelmente o build do device é antigo.
+
 ---
 
-Última atualização: D+1 mínimo no cadastro, bloqueio de duplicata,
-badge "Aguardando" em chips com troca pendente, validação de conflito
-do alvo (folga + trocas PENDING/ACCEPTED), defesa em profundidade no
-`requestSwap`, listas ordenadas por data, push notifications via
-FCM/Cloud Functions.
+Última atualização: PRs #46 (auto-recusa de irmãs no aceite, filtros
+de status, logout volta pra Login), #47 (redesign Login), #49/#50
+(esqueci minha senha com gate por `allowed_emails`), #51 (filtro
+"Confirmada", bloqueio de cadastro em data com troca aceita, copy
+dos cards sensível ao status + perspectiva, logout estável).
