@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.folga.auth.GoogleSignInProvider
 import app.folga.auth.GoogleSignInResult
+import app.folga.domain.AllowedEmailRepository
 import app.folga.domain.AuthRepository
 import app.folga.domain.AuthResult
-import app.folga.domain.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +31,7 @@ data class LoginUiState(
 class LoginViewModel(
     private val authRepository: AuthRepository,
     private val googleSignInProvider: GoogleSignInProvider,
-    private val userRepository: UserRepository,
+    private val allowedEmailRepository: AllowedEmailRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -49,18 +49,21 @@ class LoginViewModel(
      * campo de Login e dispara o envio do link de redefinição via
      * `FirebaseAuth.sendPasswordResetEmail`.
      *
-     * Gate: o e-mail precisa existir no Firestore `users`. Sem esse
-     * gate, qualquer um poderia usar o botão como oráculo pra
-     * descobrir se determinado endereço tem conta no app (o Firebase
-     * só responde com erro pra e-mails que NUNCA logaram, e ainda
-     * assim só na chamada — não vaza listagem). Bloquear pelos `users`
-     * deixa explícito que o reset é só pra quem já completou cadastro
-     * pelo app, não pra qualquer e-mail no Firebase Auth.
+     * Gate: o e-mail precisa estar em [allowed_emails] no Firestore.
+     * Originalmente o gate era em `users`, mas a rule do `users`
+     * exige `isSignedIn()` e nesse fluxo o usuário está deslogado —
+     * a query falhava sempre com PERMISSION_DENIED. As rules de
+     * `allowed_emails` já permitem `get` público (mesma regra usada
+     * pelo gate de cadastro), então a checagem funciona sem auth.
      *
-     * Reset de senha não cria usuário, então mesmo que o e-mail esteja
-     * em [allowed_emails] mas ainda não tenha logado nenhuma vez, ele
-     * não vai estar em `users` — comportamento intencional, o usuário
-     * precisa concluir o cadastro/primeiro login antes.
+     * Comportamento prático equivalente:
+     * - Se o e-mail está autorizado mas ainda não tem conta no
+     *   Firebase Auth, o `sendPasswordResetEmail` retorna erro
+     *   ("Usuário não encontrado") via `humanMessage()`.
+     * - Se está autorizado e tem conta, o e-mail é enviado.
+     * - Se não está autorizado, paramos antes mesmo de bater no
+     *   Firebase Auth (zero gasto de quota e mensagem clara pro
+     *   usuário pedir liberação ao admin).
      */
     fun onForgotPassword() {
         val email = _state.value.email.trim()
@@ -75,11 +78,12 @@ class LoginViewModel(
         }
         _state.update { it.copy(isLoading = true, error = null, infoMessage = null) }
         viewModelScope.launch {
-            // 1) Verifica se o e-mail tem perfil no `users`. Se a leitura
-            // falhar (rede/permissão), reportamos erro genérico em vez de
+            // 1) Verifica se o e-mail está autorizado. Se a leitura
+            // falhar (rede/permissão), reportamos erro em vez de
             // disparar o reset cego — assim a gente não mente "enviado"
-            // quando na verdade nem checou.
-            val existingUser = runCatching { userRepository.findByEmail(email) }
+            // quando na verdade nem checou. AllowedEmailRepository tem
+            // `get` público nas rules pra esse fluxo funcionar deslogado.
+            val isAllowed = runCatching { allowedEmailRepository.isAllowed(email) }
                 .getOrElse { ex ->
                     _state.update {
                         it.copy(
@@ -89,17 +93,20 @@ class LoginViewModel(
                     }
                     return@launch
                 }
-            if (existingUser == null) {
+            if (!isAllowed) {
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = "E-mail não encontrado. Verifique se digitou corretamente ou solicite cadastro ao administrador.",
+                        error = "E-mail não autorizado. Verifique se digitou corretamente ou solicite cadastro ao administrador.",
                     )
                 }
                 return@launch
             }
-            // 2) E-mail existe — pede o link de reset pro Firebase. Só
-            // mostramos sucesso se o Firebase aceitar.
+            // 2) Autorizado — pede o link de reset pro Firebase. Só
+            // mostramos sucesso se o Firebase aceitar (se o e-mail
+            // está autorizado mas ainda não tem conta de fato no
+            // Auth, cai como Failure com mensagem "Usuário não
+            // encontrado", que é a indicação certa pro usuário).
             when (val result = authRepository.sendPasswordResetEmail(email)) {
                 is AuthResult.Success -> _state.update {
                     it.copy(
