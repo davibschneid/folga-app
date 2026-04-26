@@ -148,7 +148,12 @@ fun SwapsScreen(
             Text("Meus dias cadastrados", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             FolgaChips(
-                folgas = my.filter { it.status == FolgaStatus.SCHEDULED },
+                // Ordenamos por data (ascendente — próximo primeiro)
+                // pra "Meus dias cadastrados" também ficar em ordem
+                // cronológica aqui na tela de Trocas, mesmo padrão da
+                // Home (`FolgasScreen`).
+                folgas = my.filter { it.status == FolgaStatus.SCHEDULED }
+                    .sortedBy { it.date },
                 selectedId = state.selectedMyFolgaId,
                 onSelect = viewModel::selectMy,
                 users = users,
