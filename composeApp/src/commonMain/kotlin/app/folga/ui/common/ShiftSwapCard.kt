@@ -42,13 +42,18 @@ import kotlinx.datetime.LocalDate
  * scroll):
  * - Header: título "Troca de trabalho" + data à direita
  * - Row dos avatares + nomes + seta
- * - Linha "{target} trabalha para {requester} no dia DD/MM" — espelha o
- *   modelo unidirecional: o `target` é o colega que assumiu o dia; o
- *   `requester` é quem cadastrou o dia e pediu a troca. Os parâmetros
- *   `requesterShift`/`targetShift` ficam disponíveis na assinatura mas
- *   não são exibidos (a linha de turno foi removida — turno é regra
- *   de negócio interna, não interessa ao usuário lendo a troca).
+ * - Linha descritiva sensível ao status e à perspectiva do usuário
+ *   atual (requester ou target) — montada por [swapDescription]
  * - Badge de status
+ *
+ * `viewerRole` define se o usuário atual é o requester ou target da
+ * troca, ou `null` (visualização neutra/admin) — controla as
+ * mensagens "para você"/"de você" da linha descritiva.
+ *
+ * Os parâmetros `requesterShift`/`targetShift` ficam disponíveis na
+ * assinatura mas não são exibidos — a linha de turno foi removida
+ * (turno é regra de negócio interna, não interessa ao usuário
+ * lendo a troca).
  */
 @Composable
 fun ShiftSwapCard(
@@ -60,6 +65,7 @@ fun ShiftSwapCard(
     @Suppress("UNUSED_PARAMETER") targetShift: Shift?,
     date: LocalDate?,
     status: SwapStatus,
+    viewerRole: SwapViewerRole?,
     modifier: Modifier = Modifier,
     actions: (@Composable () -> Unit)? = null,
 ) {
@@ -107,13 +113,13 @@ fun ShiftSwapCard(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(targetName) }
-                    append(" trabalha para ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(requesterName) }
-                    append(" no dia ")
-                    append(date?.let { formatShort(it) } ?: "—")
-                },
+                text = swapDescription(
+                    status = status,
+                    requesterName = requesterName,
+                    targetName = targetName,
+                    date = date,
+                    viewerRole = viewerRole,
+                ),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(8.dp))
@@ -182,6 +188,122 @@ private fun shiftLabel(shift: Shift): String = when (shift) {
     Shift.MANHA -> "Manhã"
     Shift.TARDE -> "Tarde"
     Shift.NOITE -> "Noite"
+}
+
+/**
+ * Perspectiva do usuário que está olhando o card. Define como a linha
+ * descritiva é fraseada — "<colega> aceitou trabalhar para você" só faz
+ * sentido se o viewer é o requester; se é o target, vira "Você aceitou
+ * trabalhar para <colega>".
+ */
+enum class SwapViewerRole { REQUESTER, TARGET }
+
+/**
+ * Constrói a linha descritiva do card baseada no status da troca e na
+ * perspectiva do usuário (requester / target / neutro).
+ *
+ * Copy revisado pelo cliente:
+ *  - PENDING: "Aguardando o usuário <B>" / "Aguardando sua resposta…"
+ *  - ACCEPTED: "<A> aceitou trabalhar para você no dia DD/MM"
+ *  - REJECTED: "Proposta recusada por <A> no dia DD/MM"
+ *  - CANCELLED: "<A> cancelou o trabalho agendado (DD/MM)"
+ *
+ * Onde:
+ *  - <A> em ACCEPTED/REJECTED é o **target** (quem aceitou/recusou).
+ *  - <A> em CANCELLED é o **requester** (só ele cancela).
+ *  - <B> em PENDING é o **target** (a quem está sendo pedido).
+ *
+ * Quando o viewer é o lado <A>/<B>, a frase é flexionada na 1ª pessoa
+ * ("Você aceitou…", "Aguardando sua resposta…") pra ficar mais natural.
+ */
+internal fun swapDescription(
+    status: SwapStatus,
+    requesterName: String,
+    targetName: String,
+    date: LocalDate?,
+    viewerRole: SwapViewerRole?,
+): androidx.compose.ui.text.AnnotatedString {
+    val dateStr = date?.let { formatShort(it) } ?: "—"
+    return buildAnnotatedString {
+        when (status) {
+            SwapStatus.PENDING -> when (viewerRole) {
+                SwapViewerRole.REQUESTER -> {
+                    append("Aguardando o usuário ")
+                    bold(targetName)
+                }
+                SwapViewerRole.TARGET -> {
+                    append("Aguardando sua resposta — ")
+                    bold(requesterName)
+                    append(" pediu o dia $dateStr")
+                }
+                null -> {
+                    append("Aguardando ")
+                    bold(targetName)
+                    append(" responder — pedido de ")
+                    bold(requesterName)
+                }
+            }
+
+            SwapStatus.ACCEPTED -> when (viewerRole) {
+                SwapViewerRole.REQUESTER -> {
+                    bold(targetName)
+                    append(" aceitou trabalhar para você no dia $dateStr")
+                }
+                SwapViewerRole.TARGET -> {
+                    append("Você aceitou trabalhar para ")
+                    bold(requesterName)
+                    append(" no dia $dateStr")
+                }
+                null -> {
+                    bold(targetName)
+                    append(" aceitou trabalhar para ")
+                    bold(requesterName)
+                    append(" no dia $dateStr")
+                }
+            }
+
+            SwapStatus.REJECTED -> when (viewerRole) {
+                SwapViewerRole.REQUESTER -> {
+                    append("Proposta recusada por ")
+                    bold(targetName)
+                    append(" no dia $dateStr")
+                }
+                SwapViewerRole.TARGET -> {
+                    append("Você recusou a proposta de ")
+                    bold(requesterName)
+                    append(" no dia $dateStr")
+                }
+                null -> {
+                    bold(targetName)
+                    append(" recusou a proposta de ")
+                    bold(requesterName)
+                    append(" no dia $dateStr")
+                }
+            }
+
+            // CANCELLED só é alcançável pelo requester (regra de
+            // negócio + Firestore rules), então a perspectiva
+            // determina se mostramos "Você cancelou" ou
+            // "<requester> cancelou".
+            SwapStatus.CANCELLED -> when (viewerRole) {
+                SwapViewerRole.REQUESTER -> {
+                    append("Você cancelou o trabalho agendado ($dateStr)")
+                }
+                SwapViewerRole.TARGET -> {
+                    bold(requesterName)
+                    append(" cancelou o trabalho agendado ($dateStr)")
+                }
+                null -> {
+                    bold(requesterName)
+                    append(" cancelou o trabalho agendado ($dateStr)")
+                }
+            }
+        }
+    }
+}
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.bold(text: String) {
+    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text) }
 }
 
 /** Formato "DD/MM". O ano fica de fora pra economizar espaço. */
