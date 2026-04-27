@@ -37,6 +37,28 @@ class LoginViewModel(
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
 
+    init {
+        // Bug encontrado em produção: LoginViewModel sobrevive entre
+        // logins (ViewModelStore tied à Activity, não ao login).
+        // Eric logava no mesmo aparelho que o Davi tinha logado e
+        // saído, depois o Eric saía e o form de Login voltava com
+        // o e-mail/senha do Eric ainda preenchidos. Reset state
+        // toda vez que detectamos a transição "logado → deslogado".
+        // O reset não dispara no boot (currentUser começa null sem
+        // ter sido != null antes), então não atrapalha o usuário
+        // que está no meio de digitar.
+        viewModelScope.launch {
+            var wasLoggedIn = false
+            authRepository.currentUser.collect { user ->
+                val nowLoggedIn = user != null
+                if (wasLoggedIn && !nowLoggedIn) {
+                    _state.value = LoginUiState()
+                }
+                wasLoggedIn = nowLoggedIn
+            }
+        }
+    }
+
     fun onEmailChange(value: String) = _state.update {
         it.copy(email = value, error = null, infoMessage = null)
     }
