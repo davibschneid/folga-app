@@ -50,6 +50,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.folga.ui.common.CrashShareLink
 import org.koin.compose.viewmodel.koinViewModel
 
 // Paleta do redesign: azul royal pra primário (botão Entrar, ícones de
@@ -270,6 +271,13 @@ fun LoginScreen(
                 Spacer(Modifier.width(12.dp))
                 Text("Entrar com Google")
             }
+
+            // Link "Compartilhar último crash" — só renderiza no
+            // Android e só se houver um arquivo de crash gravado pelo
+            // handler do `FolgaApplication`. É a saída de emergência
+            // pra capturar o stack trace quando o app fecha sozinho
+            // (caso do bug recorrente do botão Sair).
+            CrashShareLink()
         }
     }
 }
