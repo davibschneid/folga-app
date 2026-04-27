@@ -49,7 +49,15 @@ class FolgaApplication : Application() {
      * crash ficaria silencioso e mais difícil de diagnosticar.
      */
     private fun installCrashLogger() {
-        val dir = File(getExternalFilesDir(null), "crashes").apply { mkdirs() }
+        // `getExternalFilesDir(null)` pode retornar null em devices sem
+        // storage externo montado (SD card removível em certos cenários).
+        // Quando isso acontece, `File(null, "crashes")` resolve pra
+        // "/crashes" no root — `mkdirs()` falha silencioso e o crash log
+        // some. Cai pra `filesDir` (storage interno) como fallback —
+        // menos acessível pro usuário, mas pelo menos o arquivo é
+        // gravado e pode ser puxado via adb se necessário.
+        val base = getExternalFilesDir(null) ?: filesDir
+        val dir = File(base, "crashes").apply { mkdirs() }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
