@@ -7,6 +7,7 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
@@ -66,12 +67,22 @@ class FirestoreFolgaRepository(
     override fun observeByUser(userId: String): Flow<List<Folga>> =
         folgas.where { "userId" equalTo userId }.snapshots.map { snap ->
             snap.documents.map { it.data(FolgaDto.serializer()).toDomain() }
-        }
+        }.catch { emit(emptyList()) }
 
+    // `catch { emit(emptyList()) }` é defesa contra o crash que aparecia
+    // logo depois do logout: o listener do Firestore tava ativo quando
+    // `auth.signOut()` derrubava a sessão, então o snapshot seguinte
+    // batia em PERMISSION_DENIED (as rules exigem `isSignedIn()`). A
+    // exceção subia pelo `combine`/`stateIn` dos ViewModels (que ficam
+    // vivos no ViewModelStore da Activity mesmo depois da tela trocar)
+    // e caía no uncaughtExceptionHandler do thread main — o app
+    // simplesmente fechava sem mensagem nem stack pro usuário.
+    // Engolir o erro emitindo lista vazia mantém o app responsivo até
+    // o auto-redirect cair pra Login e os ViewModels desinscreverem.
     override fun observeAll(): Flow<List<Folga>> =
         folgas.snapshots.map { snap ->
             snap.documents.map { it.data(FolgaDto.serializer()).toDomain() }
-        }
+        }.catch { emit(emptyList()) }
 
     private companion object {
         const val COLLECTION = "folgas"

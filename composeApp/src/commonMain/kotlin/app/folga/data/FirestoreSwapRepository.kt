@@ -8,6 +8,7 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 
@@ -126,15 +127,22 @@ class FirestoreSwapRepository(
         }
     }
 
+    // `catch { emit(emptyList()) }` em ambos os observers: depois do
+    // `auth.signOut()` o listener pode receber um último snapshot com
+    // PERMISSION_DENIED (as rules de `swaps` exigem `isSignedIn()`).
+    // Sem esse catch a exceção subia pelo `combine`/`stateIn` dos
+    // ViewModels (que sobrevivem à troca de tela porque ficam no
+    // ViewModelStore da Activity) e crashava o app — usuário via como
+    // "clicou em Sair e o app fechou".
     override fun observeIncoming(userId: String): Flow<List<SwapRequest>> =
         swaps.where { "targetId" equalTo userId }.snapshots.map { snap ->
             snap.documents.map { it.data(SwapDto.serializer()).toDomain() }
-        }
+        }.catch { emit(emptyList()) }
 
     override fun observeOutgoing(userId: String): Flow<List<SwapRequest>> =
         swaps.where { "requesterId" equalTo userId }.snapshots.map { snap ->
             snap.documents.map { it.data(SwapDto.serializer()).toDomain() }
-        }
+        }.catch { emit(emptyList()) }
 
     private companion object {
         const val SWAPS = "swaps"
