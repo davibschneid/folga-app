@@ -5,6 +5,7 @@ import app.folga.domain.AuthRepository
 import app.folga.domain.MessagingTokenRepository
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,7 +33,17 @@ class FcmTokenSyncer(
     private val authRepository: AuthRepository,
     private val messagingTokenRepository: MessagingTokenRepository,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // CoroutineExceptionHandler é a rede de segurança final pra
+    // exceções que escapem do `runCatching` do `saveToken` ou de
+    // qualquer cleanup de cancellation do flow. Sem ele, uma
+    // exceção solta nesse scope (ex.: PERMISSION_DENIED durante
+    // logout, NPE numa chamada do FirebaseMessaging) cai no
+    // uncaughtExceptionHandler global e fecha o app. SupervisorJob
+    // já isola filhos, mas não captura exceções não-tratadas.
+    private val handler = CoroutineExceptionHandler { _, throwable ->
+        Log.w(TAG, "Erro engolido no FcmTokenSyncer scope", throwable)
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + handler)
 
     fun start() {
         scope.launch {

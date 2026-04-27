@@ -63,19 +63,30 @@ class ProfileViewModel(
 
     init {
         viewModelScope.launch {
-            val user = authRepository.currentUser.first { it != null }!!
-            prefill(user)
+            // Bug encontrado em produção: ProfileViewModel sobrevive
+            // entre logouts (ViewModelStore tied à Activity, não ao
+            // login). Quando o Davi saía e o Eric entrava na mesma
+            // sessão da Activity, o ProfileViewModel ainda tinha o
+            // state prefillado com os dados do Davi — Eric abria o
+            // perfil e via "Davi Schneid", matrícula do Davi etc.
+            //
+            // Fix: re-prefilla toda vez que o user.id muda. Mesmo
+            // user emitindo updates (ex.: foto atualizada em outro
+            // device) só sincroniza o photoUrl, sem sobrescrever o
+            // form que pode estar sendo editado.
+            var lastUserId: String? = null
+            authRepository.currentUser.filterNotNull().collect { user ->
+                if (user.id != lastUserId) {
+                    lastUserId = user.id
+                    prefill(user)
+                } else {
+                    _state.update { it.copy(photoUrl = user.photoUrl) }
+                }
+            }
         }
         viewModelScope.launch {
             pendingIncoming.collect { count ->
                 _state.update { it.copy(pendingSwapsCount = count) }
-            }
-        }
-        viewModelScope.launch {
-            // Sincroniza photoUrl com o user atual sempre que ele muda —
-            // outros fluxos (ex.: outro device) podem alterar a foto.
-            authRepository.currentUser.filterNotNull().collect { u ->
-                _state.update { it.copy(photoUrl = u.photoUrl) }
             }
         }
     }

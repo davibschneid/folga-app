@@ -11,6 +11,8 @@ import app.folga.domain.MessagingTokenRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,7 +42,17 @@ class FolgaMessagingService : FirebaseMessagingService() {
     // se o ciclo de vida do Service for chamado em condições estranhas.
     private val messagingTokenRepository: MessagingTokenRepository by inject()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Mesma rede de segurança do FcmTokenSyncer: o callback `onNewToken`
+    // pode disparar em momentos imprevisíveis (rotação de token, reset
+    // de FID), e se nesse instante o usuário tiver acabado de fazer
+    // signOut, o `saveToken` lança PERMISSION_DENIED. O `runCatching`
+    // do FirestoreMessagingTokenRepository cobre o caso comum, mas
+    // mantemos o handler como segunda linha pra qualquer exceção
+    // escapando do scope.
+    private val handler = CoroutineExceptionHandler { _, throwable ->
+        Log.w("FolgaMsg", "Erro engolido no scope do FolgaMessagingService", throwable)
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + handler)
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)

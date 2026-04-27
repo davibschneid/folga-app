@@ -7,6 +7,7 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 
@@ -54,12 +55,18 @@ class FirestoreAllowedEmailRepository(
         collection.document(normalized).delete()
     }
 
+    // `catch { emit(emptyList()) }` na mesma linha dos outros
+    // observers de Firestore: depois do logout o listener pode
+    // receber um snapshot com PERMISSION_DENIED (a regra de
+    // `allowed_emails` exige admin pra leitura full). Engolir
+    // mantém a tela Admin estável sem precisar checar o estado
+    // de auth aqui.
     override fun observeAll(): Flow<List<AllowedEmail>> =
         collection.snapshots.map { snap ->
             snap.documents
                 .map { it.data(AllowedEmailDto.serializer()).toDomain() }
                 .sortedBy { it.email }
-        }
+        }.catch { emit(emptyList()) }
 
     private companion object {
         const val COLLECTION = "allowed_emails"
