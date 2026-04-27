@@ -65,6 +65,16 @@ private fun AppContent() {
     // o usuário ficava "deslogado mas logado" — App.kt nunca via
     // `currentUser == null` e o redirect pra Login não disparava.
     val appScope = rememberCoroutineScope()
+    // Flag pra travar o fluxo de logout: navegamos pra Login na hora
+    // do clique pra UX ficar instantânea, mas o `currentUser` só
+    // emite null depois que o `auth.signOut()` terminar. Sem essa
+    // flag, o bloco de auto-redirect "loggedIn && screen is Login →
+    // Folgas" abaixo bumparia o usuário de volta pra Home enquanto
+    // o sign-out tá em flight — efeito de "flicker" que parecia o
+    // app fechando. A flag é resetada quando `currentUser` cai pra
+    // null (signal mais robusto que `try/finally` no launch — cobre
+    // o caso de o appScope ser cancelado no meio).
+    var isLoggingOut by remember { mutableStateOf(false) }
     // Reports pode ser aberto da Home (atalho no header) ou do Perfil
     // (item da lista). Sem rastrear a origem, o "voltar" sempre cai no
     // mesmo lugar — o que confunde quem entrou pela Home. Guardamos a
@@ -76,13 +86,20 @@ private fun AppContent() {
     val loggedIn = user != null
     val profileComplete = user?.isProfileComplete() == true
 
+    // Reset da flag de logout assim que o auth state confirma que
+    // o usuário saiu de fato. Daqui em diante o auto-redirect volta
+    // a funcionar normal (login subsequente bumpa Login → Folgas).
+    if (!loggedIn && isLoggingOut) {
+        isLoggingOut = false
+    }
+
     if (!loggedIn && screen !is Screen.Login && screen !is Screen.Register) {
         screen = Screen.Login
     }
     if (loggedIn && !profileComplete) {
         screen = Screen.CompletarCadastro
     }
-    if (loggedIn && profileComplete &&
+    if (loggedIn && profileComplete && !isLoggingOut &&
         (screen is Screen.Login || screen is Screen.Register || screen is Screen.CompletarCadastro)
     ) {
         screen = Screen.Folgas
@@ -137,19 +154,23 @@ private fun AppContent() {
             },
             onOpenAdmin = { screen = Screen.Admin }
                 .takeIf { user?.role == UserRole.ADMIN },
-            // Logout: dispara o signOut no `appScope` (escopo do App,
-            // não do ViewModel). NÃO setamos `screen = Login` aqui:
-            // a auto-redirect logic (`!loggedIn && screen !is Login`)
-            // pega isso assim que o `currentUser` vira null.
+            // Logout: navegamos eager pra Login (UX instantânea) e
+            // disparamos o `signOut` async no `appScope`. A flag
+            // `isLoggingOut` evita que o bloco de auto-redirect
+            // logo acima ("loggedIn && screen is Login → Folgas")
+            // bumpasse o usuário de volta pra Home enquanto o
+            // `auth.signOut()` ainda não terminou — sem esse guard,
+            // o fluxo era: clica Sair → screen=Login → recompose
+            // com loggedIn ainda true → bump pra Folgas (em alguns
+            // devices isso parecia o app fechando).
             //
-            // Por que não setar o screen direto? Se navegássemos pra
-            // Login enquanto `currentUser` ainda fosse não-null (o
-            // signOut ainda estava em flight), o bloco
-            // `loggedIn && profileComplete && screen is Login`
-            // logo abaixo bumparia de volta pra Folgas — o usuário
-            // via um "flicker" pra Folgas e em alguns devices a UI
-            // parecia travar nesse estado.
+            // O reset da flag `isLoggingOut` acontece no recompose
+            // que vê `!loggedIn` (linha acima), não aqui — assim
+            // cobrimos também o cenário onde o appScope é cancelado
+            // por mudança de configuração no meio do signOut.
             onLogout = {
+                isLoggingOut = true
+                screen = Screen.Login
                 appScope.launch { authRepository.signOut() }
             },
         )
