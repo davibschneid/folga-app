@@ -7,6 +7,7 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 
@@ -54,12 +55,18 @@ class FirestoreAllowedEmailRepository(
         collection.document(normalized).delete()
     }
 
+    // `catch { emit(emptyList()) }` mesma motivação dos outros repos
+    // (ver FirestoreFolgaRepository): se o admin tá na tela de
+    // Administração e clica Sair, esse listener pode receber
+    // PERMISSION_DENIED no snapshot final (rule de `allowed_emails`
+    // exige `isAdmin()` pra `list`). Sem catch, a exceção crashava o
+    // app pelo `stateIn(viewModelScope)` do AdminViewModel.
     override fun observeAll(): Flow<List<AllowedEmail>> =
         collection.snapshots.map { snap ->
             snap.documents
                 .map { it.data(AllowedEmailDto.serializer()).toDomain() }
                 .sortedBy { it.email }
-        }
+        }.catch { emit(emptyList()) }
 
     private companion object {
         const val COLLECTION = "allowed_emails"
