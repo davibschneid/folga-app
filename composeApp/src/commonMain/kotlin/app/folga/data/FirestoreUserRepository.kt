@@ -7,6 +7,7 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 /**
@@ -50,10 +51,15 @@ class FirestoreUserRepository(
         users.document(userId).update("role" to role.name)
     }
 
+    // `catch { emit(emptyList()) }` evita crash do app no logout: depois
+    // de `auth.signOut()` o listener fica ativo até o `stateIn` desistir,
+    // e o snapshot seguinte vem com PERMISSION_DENIED (rules exigem
+    // `isSignedIn()`). Sem esse catch, a exceção subia pelos ViewModels
+    // e crashava o processo.
     override fun observeAll(): Flow<List<User>> =
         users.snapshots.map { snap ->
             snap.documents.map { it.data(UserDto.serializer()).toDomain() }
-        }
+        }.catch { emit(emptyList()) }
 
     private companion object {
         const val COLLECTION = "users"

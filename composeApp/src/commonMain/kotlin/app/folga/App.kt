@@ -171,7 +171,20 @@ private fun AppContent() {
             onLogout = {
                 isLoggingOut = true
                 screen = Screen.Login
-                appScope.launch { authRepository.signOut() }
+                appScope.launch {
+                    // runCatching aqui é cinto + suspensório: o
+                    // `signOut` interno já envolve `clearToken` e
+                    // `auth.signOut()` em runCatching. Mas se algo
+                    // escapar (ex.: `manualUser.value = null` racing
+                    // com observer que crashou), uma exceção solta
+                    // dentro do `appScope.launch` cai no
+                    // uncaughtExceptionHandler do thread main no
+                    // Android — efeito visível pra o usuário: app
+                    // fecha sem mensagem. Engolir aqui mantém o app
+                    // estável; o fluxo de auth já está garantido
+                    // pelo eager-nav pra Login.
+                    runCatching { authRepository.signOut() }
+                }
             },
         )
 
