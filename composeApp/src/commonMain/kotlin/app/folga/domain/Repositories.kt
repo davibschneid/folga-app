@@ -123,6 +123,18 @@ interface AuthRepository {
     suspend fun signOut()
 
     /**
+     * Garante que a camada de Firestore está pronta pra receber
+     * leituras/escritas. Necessário porque o [signOut] desabilita a
+     * rede do Firestore globalmente (corta listeners pra evitar
+     * PERMISSION_DENIED pós-logout). Fluxos que rodam DESLOGADOS e
+     * batem no Firestore — como o "Esqueci minha senha", que faz
+     * `isAllowed` em [AllowedEmailRepository] antes de qualquer
+     * sign-in — precisam chamar isso primeiro pra reativar a rede.
+     * Os caminhos de signIn já chamam internamente. Idempotente.
+     */
+    suspend fun ensureFirestoreReady()
+
+    /**
      * Dispara o e-mail de reset de senha do Firebase Auth pra [email].
      * Pré-condição: o e-mail precisa existir como doc no `users` (gate
      * aplicado pelo [LoginViewModel] antes de chamar) — assim a gente

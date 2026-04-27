@@ -380,8 +380,16 @@ class FirebaseAuthRepository(
      * Garante que a rede do Firestore está ativa. É idempotente — se já
      * estava habilitada, no-op. Chamada antes de qualquer flow de login
      * pra reativar listeners depois do `disableNetwork` que rodou no
-     * último logout.
+     * último logout. Exposta no contrato pra que ViewModels que rodam
+     * deslogados (LoginViewModel.onForgotPassword) consigam reativar
+     * a rede ANTES de fazer leituras no Firestore — sem isso, o gate
+     * `isAllowed` no fluxo de "Esqueci minha senha" lia do cache
+     * (que não tem o doc) e devolvia false pro usuário legítimo.
      */
+    override suspend fun ensureFirestoreReady() {
+        ensureFirestoreOnline()
+    }
+
     private suspend fun ensureFirestoreOnline() {
         runCatching { firestore.enableNetwork() }
     }

@@ -78,6 +78,13 @@ class LoginViewModel(
         }
         _state.update { it.copy(isLoading = true, error = null, infoMessage = null) }
         viewModelScope.launch {
+            // 0) Reativa a rede do Firestore: o `signOut` desabilita
+            // pra evitar PERMISSION_DENIED nos listeners. Esse fluxo
+            // roda deslogado (usuário acabou de sair OU nunca logou),
+            // então precisa garantir que a leitura abaixo não vai
+            // bater no cache offline. Idempotente — no-op se já está
+            // online (caso primeiro acesso pós-install).
+            authRepository.ensureFirestoreReady()
             // 1) Verifica se o e-mail está autorizado. Se a leitura
             // falhar (rede/permissão), reportamos erro em vez de
             // disparar o reset cego — assim a gente não mente "enviado"
