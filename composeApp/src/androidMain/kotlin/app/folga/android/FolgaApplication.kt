@@ -76,46 +76,18 @@ class FolgaApplication : Application() {
                 )
                 Log.e(TAG, "Crash gravado em ${file.absolutePath}", throwable)
             }
-            // FirebaseFirestoreException PERMISSION_DENIED durante o
-            // logout: os listeners ativos do Firestore recebem o erro
-            // do servidor depois que `auth.signOut()` derruba a sessão
-            // (regras exigem auth). O `.catch { emit(emptyList()) }`
-            // nos flows protege a maioria dos casos, mas exceções que
-            // chegam DURANTE a janela de cancellation (entre
-            // `cancel()` e o `awaitClose` rodar pra remover o listener)
-            // escapam — ficam como completion-cause de coroutines em
-            // estado `Cancelling` e caem aqui sem dono. Engolir esse
-            // caso específico mantém o app vivo enquanto o auth state
-            // converge pra null e os ViewModels desinscrevem. Outros
-            // tipos de crash continuam crashando normal pra não
-            // mascarar bugs reais.
-            if (isFirestorePermissionDenied(throwable)) {
-                Log.w(TAG, "Engolindo PERMISSION_DENIED pós-logout — não crasha")
-                return@setDefaultUncaughtExceptionHandler
-            }
+            // Tentativa anterior tinha um swallow específico pra
+            // FirebaseFirestoreException PERMISSION_DENIED aqui. Não
+            // funcionou: a exceção, quando vinha da coroutine do
+            // recomposer (AndroidUiDispatcher + BroadcastFrameClock),
+            // era engolida — o app não fechava — mas o recomposer
+            // completava excepcionalmente e a UI congelava (nenhum
+            // botão respondia). A fonte de verdade agora é o
+            // `firestore.disableNetwork()` no `signOut`, que evita
+            // o erro chegar no listener. Mantemos a propagação pra
+            // cima pra não mascarar nenhum outro crash.
             previous?.uncaughtException(thread, throwable)
         }
-    }
-
-    /**
-     * Walk pela cadeia de causes pra detectar `FirebaseFirestoreException`
-     * com código `PERMISSION_DENIED`. Comparação por nome de classe pra
-     * não acoplar o `FolgaApplication` ao SDK do Firestore (mantém
-     * `FolgaApplication` magrinho — Firestore só entra via gitlive na
-     * camada de data).
-     */
-    private fun isFirestorePermissionDenied(t: Throwable): Boolean {
-        var current: Throwable? = t
-        while (current != null) {
-            val className = current::class.java.name
-            val isFirestoreException =
-                className == "com.google.firebase.firestore.FirebaseFirestoreException"
-            val isPermissionDenied =
-                current.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true
-            if (isFirestoreException && isPermissionDenied) return true
-            current = current.cause
-        }
-        return false
     }
 
     private companion object {

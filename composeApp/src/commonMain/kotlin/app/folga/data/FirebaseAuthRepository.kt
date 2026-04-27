@@ -10,6 +10,8 @@ import app.folga.domain.User
 import app.folga.domain.UserRepository
 import app.folga.domain.UserRole
 import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.firestore.FirebaseFirestore
+import dev.gitlive.firebase.firestore.firestore
 import dev.gitlive.firebase.auth.FirebaseAuth
 import dev.gitlive.firebase.auth.FirebaseAuthException
 import dev.gitlive.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -36,6 +38,7 @@ class FirebaseAuthRepository(
     private val allowedEmailRepository: AllowedEmailRepository,
     private val messagingTokenRepository: MessagingTokenRepository,
     private val auth: FirebaseAuth = Firebase.auth,
+    private val firestore: FirebaseFirestore = Firebase.firestore,
 ) : AuthRepository {
 
     /**
@@ -93,6 +96,7 @@ class FirebaseAuthRepository(
     }
 
     override suspend fun signInWithEmail(email: String, password: String): AuthResult = runCatching {
+        ensureFirestoreOnline()
         // Gate antes de qualquer side-effect: se o admin revogou o e-mail,
         // mesmo tendo cadastro no Firebase Auth o login é bloqueado.
         // `checkEmailAllowed` pode lançar no Firestore (rede/permissão).
@@ -126,6 +130,7 @@ class FirebaseAuthRepository(
         team: String,
         shift: Shift,
     ): AuthResult {
+        ensureFirestoreOnline()
         // Gate ANTES de criar conta no Firebase Auth — senão o e-mail não
         // autorizado ficaria com conta órfã no Auth (gastando quota e
         // bloqueando retry). `checkEmailAllowed` faz I/O no Firestore, que
@@ -179,6 +184,7 @@ class FirebaseAuthRepository(
         email: String,
         name: String,
     ): AuthResult = runCatching {
+        ensureFirestoreOnline()
         // Exchange the Google ID token for a Firebase credential. `null`
         // access token is the supported value when using Credential Manager /
         // GoogleSignIn — only the ID token is required.
@@ -355,8 +361,29 @@ class FirebaseAuthRepository(
         if (uid != null) {
             runCatching { messagingTokenRepository.clearToken(uid) }
         }
+        // Desabilita a rede do Firestore ANTES do signOut: corta o
+        // canal de watch onde o servidor manda PERMISSION_DENIED pros
+        // listeners ativos quando a sessão cai. Sem isso, o próximo
+        // snapshot pós-signOut chega com erro e cai numa coroutine em
+        // estado Cancelling, vazando exceção não-tratada (causa raiz
+        // do bug do botão Sair). Os listeners locais continuam, mas
+        // não recebem mais nada do servidor até o `enableNetwork`. O
+        // próximo login chama `enableNetwork` automaticamente — ver
+        // o caminho de signIn abaixo. runCatching pra não bloquear o
+        // logout se a chamada falhar (sem rede etc.).
+        runCatching { firestore.disableNetwork() }
         runCatching { auth.signOut() }
         manualUser.value = null
+    }
+
+    /**
+     * Garante que a rede do Firestore está ativa. É idempotente — se já
+     * estava habilitada, no-op. Chamada antes de qualquer flow de login
+     * pra reativar listeners depois do `disableNetwork` que rodou no
+     * último logout.
+     */
+    private suspend fun ensureFirestoreOnline() {
+        runCatching { firestore.enableNetwork() }
     }
 
     private suspend fun resolveProfile(fbUser: FirebaseUser): User? {
