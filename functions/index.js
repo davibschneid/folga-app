@@ -72,7 +72,26 @@ exports.onAllowedEmailCreated = onDocumentCreated(
     // pra clientes que não renderizam HTML, e `html` simples
     // só com quebras de linha — sem branding pesado pra não
     // depender de hosting de assets.
-    const playStoreUrl = "https://play.google.com/store/apps/details?id=easyshift";
+    //
+    // O link da Play Store vem de `config/welcomeEmail.playStoreUrl`
+    // pra que o admin consiga atualizar pelo console (ex.: depois
+    // que a app for publicada com package id final) sem redeploy
+    // de função nem release nova de app. Se o doc não existir ou
+    // o campo estiver vazio, cai no fallback.
+    const DEFAULT_PLAY_STORE_URL =
+      "https://play.google.com/store/apps/details?id=app.folga.android";
+    let playStoreUrl = DEFAULT_PLAY_STORE_URL;
+    try {
+      const cfgSnap = await db.collection("config").doc("welcomeEmail").get();
+      const cfgUrl = cfgSnap.exists && cfgSnap.data() && cfgSnap.data().playStoreUrl;
+      if (cfgUrl && typeof cfgUrl === "string" && cfgUrl.trim()) {
+        playStoreUrl = cfgUrl.trim();
+      }
+    } catch (err) {
+      // Não bloqueia envio do e-mail por falha no config — só loga
+      // e segue com o default. Próxima execução tenta de novo.
+      logger.warn("Falha lendo config/welcomeEmail, usando URL default", err);
+    }
     const text = [
       "Olá!",
       "",
