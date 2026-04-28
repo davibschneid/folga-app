@@ -1,6 +1,15 @@
 /**
  * Cloud Functions do Easy Folgas.
  *
+ * `onAllowedEmailCreated`:
+ *   - Trigger: criação de doc em `allowed_emails/{emailId}`.
+ *   - Lê o e-mail (campo `email` ou docId, normalizado lowercase) e
+ *     escreve um doc em `mail/` com o conteúdo de boas-vindas. A
+ *     extensão "Trigger Email from Firestore" (instalada via console
+ *     pelo admin) consome essa coleção e dispara o e-mail via SMTP
+ *     configurado na extensão. Mantém a lógica de envio fora do
+ *     nosso código (sem credenciais SMTP versionadas).
+ *
  * `onSwapCreated`:
  *   - Trigger: criação de doc em `swaps/{swapId}`.
  *   - Lê o `targetId` (quem recebeu o pedido) e o `requesterId`
@@ -24,6 +33,84 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+
+exports.onAllowedEmailCreated = onDocumentCreated(
+  // Mesma região do `onSwapCreated` pra simplificar — Firestore deste
+  // projeto roda em us-central1.
+  { document: "allowed_emails/{emailId}", region: "us-central1" },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.warn("allowed_email criado sem snapshot");
+      return;
+    }
+    const data = snap.data() || {};
+    // O docId já é o e-mail normalizado (lowercase + trim) —
+    // FirestoreAllowedEmailRepository usa `AdminBootstrap.normalize`
+    // antes do `set`. Cair no campo `email` é defesa em
+    // profundidade (caso futuro mude a chave).
+    const email = (data.email || event.params.emailId || "").toString().trim();
+    if (!email || !email.includes("@")) {
+      logger.warn(`allowed_email ${event.params.emailId} sem e-mail válido, pulando boas-vindas`);
+      return;
+    }
+
+    // Idempotência: se a função reexecutar (retry, replay), não
+    // mandamos o e-mail duas vezes. Usamos o próprio docId em
+    // `mail/` igual ao do `allowed_emails/` — `set` com merge=false
+    // é write-once.
+    const mailDocId = `welcome-${event.params.emailId}`;
+    const mailRef = db.collection("mail").doc(mailDocId);
+    const existing = await mailRef.get();
+    if (existing.exists) {
+      logger.info(`E-mail de boas-vindas já enfileirado pra ${email}, pulando`);
+      return;
+    }
+
+    const subject = "Bem-vindo ao easyshift!";
+    // Texto solicitado pelo cliente. Mantemos versão `text` (plain)
+    // pra clientes que não renderizam HTML, e `html` simples
+    // só com quebras de linha — sem branding pesado pra não
+    // depender de hosting de assets.
+    const playStoreUrl = "https://play.google.com/store/apps/details?id=easyshift";
+    const text = [
+      "Olá!",
+      "",
+      "Seu e-mail foi adicionado ao easyshift, seja muito bem-vindo!",
+      "Para começar a usar o app, basta baixá-lo e concluir seu cadastro.",
+      "",
+      "Baixe na Play Store:",
+      `👉 ${playStoreUrl}`,
+      "",
+      "Qualquer dúvida, é só chamar. Boa experiência no easyshift! 🚀",
+    ].join("\n");
+    const html = [
+      "<p>Olá!</p>",
+      "<p>Seu e&#8209;mail foi adicionado ao <strong>easyshift</strong>, seja muito bem&#8209;vindo!<br>",
+      "Para começar a usar o app, basta baixá&#8209;lo e concluir seu cadastro.</p>",
+      "<p>Baixe na Play Store:<br>",
+      `👉 <a href="${playStoreUrl}">${playStoreUrl}</a></p>`,
+      "<p>Qualquer dúvida, é só chamar. Boa experiência no easyshift! 🚀</p>",
+    ].join("\n");
+
+    try {
+      await mailRef.set({
+        to: [email],
+        message: { subject, text, html },
+        // Metadados próprios pra rastreio — a extensão ignora
+        // campos extras, e nada cria índice nesses campos.
+        meta: {
+          kind: "welcome",
+          allowedEmailId: event.params.emailId,
+          enqueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+      logger.info(`E-mail de boas-vindas enfileirado pra ${email} (mail/${mailDocId})`);
+    } catch (err) {
+      logger.error(`Falha ao enfileirar e-mail de boas-vindas pra ${email}`, err);
+    }
+  },
+);
 
 exports.onSwapCreated = onDocumentCreated(
   // Region default us-central1 — alinha com o Firestore deste projeto.
