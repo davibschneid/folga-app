@@ -1,6 +1,15 @@
 /**
  * Cloud Functions do Easy Folgas.
  *
+ * `onAllowedEmailCreated`:
+ *   - Trigger: criação de doc em `allowed_emails/{emailId}`.
+ *   - Lê o e-mail (campo `email` ou docId, normalizado lowercase) e
+ *     escreve um doc em `mail/` com o conteúdo de boas-vindas. A
+ *     extensão "Trigger Email from Firestore" (instalada via console
+ *     pelo admin) consome essa coleção e dispara o e-mail via SMTP
+ *     configurado na extensão. Mantém a lógica de envio fora do
+ *     nosso código (sem credenciais SMTP versionadas).
+ *
  * `onSwapCreated`:
  *   - Trigger: criação de doc em `swaps/{swapId}`.
  *   - Lê o `targetId` (quem recebeu o pedido) e o `requesterId`
@@ -24,6 +33,108 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+
+exports.onAllowedEmailCreated = onDocumentCreated(
+  // Mesma região do `onSwapCreated` pra simplificar — Firestore deste
+  // projeto roda em us-central1.
+  { document: "allowed_emails/{emailId}", region: "us-central1" },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.warn("allowed_email criado sem snapshot");
+      return;
+    }
+    const data = snap.data() || {};
+    // O docId já é o e-mail normalizado (lowercase + trim) —
+    // FirestoreAllowedEmailRepository usa `AdminBootstrap.normalize`
+    // antes do `set`. Cair no campo `email` é defesa em
+    // profundidade (caso futuro mude a chave).
+    const email = (data.email || event.params.emailId || "").toString().trim();
+    if (!email || !email.includes("@")) {
+      logger.warn(`allowed_email ${event.params.emailId} sem e-mail válido, pulando boas-vindas`);
+      return;
+    }
+
+    // Idempotência: se a função reexecutar (retry/replay) ou o
+    // event-arc entregar duas invocações concorrentes (Firestore
+    // triggers v2 são at-least-once), não mandamos o e-mail duas
+    // vezes. `create()` é atômico — falha com ALREADY_EXISTS se
+    // o doc já existir, fechando a janela do TOCTOU que existia
+    // num get-then-set.
+    const mailDocId = `welcome-${event.params.emailId}`;
+    const mailRef = db.collection("mail").doc(mailDocId);
+
+    const subject = "Bem-vindo ao easyshift!";
+    // Texto solicitado pelo cliente. Mantemos versão `text` (plain)
+    // pra clientes que não renderizam HTML, e `html` simples
+    // só com quebras de linha — sem branding pesado pra não
+    // depender de hosting de assets.
+    //
+    // O link da Play Store vem de `config/welcomeEmail.playStoreUrl`
+    // pra que o admin consiga atualizar pelo console (ex.: depois
+    // que a app for publicada com package id final) sem redeploy
+    // de função nem release nova de app. Se o doc não existir ou
+    // o campo estiver vazio, cai no fallback.
+    const DEFAULT_PLAY_STORE_URL =
+      "https://play.google.com/store/apps/details?id=app.folga.android";
+    let playStoreUrl = DEFAULT_PLAY_STORE_URL;
+    try {
+      const cfgSnap = await db.collection("config").doc("welcomeEmail").get();
+      const cfgUrl = cfgSnap.exists && cfgSnap.data() && cfgSnap.data().playStoreUrl;
+      if (cfgUrl && typeof cfgUrl === "string" && cfgUrl.trim()) {
+        playStoreUrl = cfgUrl.trim();
+      }
+    } catch (err) {
+      // Não bloqueia envio do e-mail por falha no config — só loga
+      // e segue com o default. Próxima execução tenta de novo.
+      logger.warn("Falha lendo config/welcomeEmail, usando URL default", err);
+    }
+    const text = [
+      "Olá!",
+      "",
+      "Seu e-mail foi adicionado ao easyshift, seja muito bem-vindo!",
+      "Para começar a usar o app, basta baixá-lo e concluir seu cadastro.",
+      "",
+      "Baixe na Play Store:",
+      `👉 ${playStoreUrl}`,
+      "",
+      "Qualquer dúvida, é só chamar. Boa experiência no easyshift! 🚀",
+    ].join("\n");
+    const html = [
+      "<p>Olá!</p>",
+      "<p>Seu e&#8209;mail foi adicionado ao <strong>easyshift</strong>, seja muito bem&#8209;vindo!<br>",
+      "Para começar a usar o app, basta baixá&#8209;lo e concluir seu cadastro.</p>",
+      "<p>Baixe na Play Store:<br>",
+      `👉 <a href="${playStoreUrl}">${playStoreUrl}</a></p>`,
+      "<p>Qualquer dúvida, é só chamar. Boa experiência no easyshift! 🚀</p>",
+    ].join("\n");
+
+    try {
+      await mailRef.create({
+        to: [email],
+        message: { subject, text, html },
+        // Metadados próprios pra rastreio — a extensão ignora
+        // campos extras, e nada cria índice nesses campos.
+        meta: {
+          kind: "welcome",
+          allowedEmailId: event.params.emailId,
+          enqueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+      logger.info(`E-mail de boas-vindas enfileirado pra ${email} (mail/${mailDocId})`);
+    } catch (err) {
+      // ALREADY_EXISTS (gRPC code 6 / 'already-exists') = outra
+      // invocação concorrente já criou o doc. Comportamento
+      // desejado da idempotência — só loga e segue.
+      const code = err && (err.code || (err.errorInfo && err.errorInfo.code));
+      if (code === 6 || code === "already-exists") {
+        logger.info(`E-mail de boas-vindas já enfileirado pra ${email} (race), pulando`);
+        return;
+      }
+      logger.error(`Falha ao enfileirar e-mail de boas-vindas pra ${email}`, err);
+    }
+  },
+);
 
 exports.onSwapCreated = onDocumentCreated(
   // Region default us-central1 — alinha com o Firestore deste projeto.
