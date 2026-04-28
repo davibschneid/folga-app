@@ -55,17 +55,14 @@ exports.onAllowedEmailCreated = onDocumentCreated(
       return;
     }
 
-    // Idempotência: se a função reexecutar (retry, replay), não
-    // mandamos o e-mail duas vezes. Usamos o próprio docId em
-    // `mail/` igual ao do `allowed_emails/` — `set` com merge=false
-    // é write-once.
+    // Idempotência: se a função reexecutar (retry/replay) ou o
+    // event-arc entregar duas invocações concorrentes (Firestore
+    // triggers v2 são at-least-once), não mandamos o e-mail duas
+    // vezes. `create()` é atômico — falha com ALREADY_EXISTS se
+    // o doc já existir, fechando a janela do TOCTOU que existia
+    // num get-then-set.
     const mailDocId = `welcome-${event.params.emailId}`;
     const mailRef = db.collection("mail").doc(mailDocId);
-    const existing = await mailRef.get();
-    if (existing.exists) {
-      logger.info(`E-mail de boas-vindas já enfileirado pra ${email}, pulando`);
-      return;
-    }
 
     const subject = "Bem-vindo ao easyshift!";
     // Texto solicitado pelo cliente. Mantemos versão `text` (plain)
@@ -113,7 +110,7 @@ exports.onAllowedEmailCreated = onDocumentCreated(
     ].join("\n");
 
     try {
-      await mailRef.set({
+      await mailRef.create({
         to: [email],
         message: { subject, text, html },
         // Metadados próprios pra rastreio — a extensão ignora
@@ -126,6 +123,14 @@ exports.onAllowedEmailCreated = onDocumentCreated(
       });
       logger.info(`E-mail de boas-vindas enfileirado pra ${email} (mail/${mailDocId})`);
     } catch (err) {
+      // ALREADY_EXISTS (gRPC code 6 / 'already-exists') = outra
+      // invocação concorrente já criou o doc. Comportamento
+      // desejado da idempotência — só loga e segue.
+      const code = err && (err.code || (err.errorInfo && err.errorInfo.code));
+      if (code === 6 || code === "already-exists") {
+        logger.info(`E-mail de boas-vindas já enfileirado pra ${email} (race), pulando`);
+        return;
+      }
       logger.error(`Falha ao enfileirar e-mail de boas-vindas pra ${email}`, err);
     }
   },
