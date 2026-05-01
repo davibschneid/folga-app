@@ -31,33 +31,6 @@ kotlin {
     }
 
     sourceSets {
-        androidMain.dependencies {
-            implementation(libs.androidx.core.ktx)
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.lifecycle.runtime.ktx)
-            implementation(compose.preview)
-            implementation(libs.kotlinx.coroutines.android)
-            implementation(libs.koin.android)
-            // Credential Manager + Sign in with Google on Android.
-            // `credentials-play-services-auth` is the Play Services backend
-            // that actually surfaces Google accounts; `googleid` provides the
-            // `GetGoogleIdOption` / `GoogleIdTokenCredential` types used to
-            // request and parse the Google ID token.
-            implementation(libs.androidx.credentials)
-            implementation(libs.androidx.credentials.play.services.auth)
-            implementation(libs.googleid)
-            // Coil 2.x Android-only — carrega fotos remotas (Firebase
-            // Storage) via AsyncImage no actual do RemoteImage.
-            implementation(libs.coil.compose)
-
-            // Firebase Cloud Messaging (push notifications). O GitLive
-            // Firebase SDK não cobre messaging, então usamos a SDK
-            // oficial do Google. O BOM alinha a versão do messaging
-            // com o resto da família Firebase já trazida via transitive.
-            implementation(project.dependencies.platform(libs.firebase.bom))
-            implementation(libs.firebase.messaging)
-        }
-
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -66,43 +39,57 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.kotlinx.serialization.json)
-
+            
+            // Referências corrigidas para evitar o erro 'Unexpected type specification'
+            // Removido o 'androidx.' para bater com o libs.versions.toml
+            implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.lifecycle.runtime.compose)
+            
+            // Ktor Core e Plugins para código compartilhado
+            implementation(libs.ktorCore)
+            implementation(libs.ktorNegotiation)
+            implementation(libs.ktorJson)
+            implementation(libs.ktorLogging)
+            
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.coroutines.core)
 
+            // Firebase (GitLive SDK) para Multiplatform
+            implementation(libs.firebase.common)
             implementation(libs.firebase.auth)
             implementation(libs.firebase.firestore)
             implementation(libs.firebase.storage)
         }
 
-        commonTest.dependencies {
-            implementation(kotlin("test"))
+        androidMain.dependencies {
+            implementation(libs.androidx.core.ktx)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
+            implementation(compose.preview)
+            implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.koin.android)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.play.services.auth)
+            implementation(libs.googleid)
+            implementation(libs.coil.compose)
+            
+            // Engine do Ktor para Android
+            implementation(libs.ktorOkhttp)
+            
+            // Firebase Messaging para Android
+            implementation(libs.firebase.messaging)
+        }
+
+        iosMain.dependencies {
+            // Engine do Ktor para iOS
+            implementation(libs.ktorDarwin)
         }
     }
 }
-
-// Release signing config is loaded from either:
-//   1. environment variables (used by CI / GitHub Actions)
-//   2. ./keystore.properties at the repo root (local builds)
-// Falls back to the Android debug keystore when neither is configured, so
-// local :composeApp:assembleRelease / :composeApp:bundleRelease still run
-// without extra setup — just not with a publishable signing identity.
-val keystorePropertiesFile: File = rootProject.file("keystore.properties")
-val keystoreProperties: Properties = Properties().apply {
-    if (keystorePropertiesFile.exists()) {
-        keystorePropertiesFile.inputStream().use { stream -> load(stream) }
-    }
-}
-
-fun resolveSigningProperty(key: String): String? =
-    System.getenv(key)?.takeIf { it.isNotBlank() }
-        ?: keystoreProperties.getProperty(key)?.takeIf { it.isNotBlank() }
 
 android {
     namespace = "app.folga.android"
@@ -112,53 +99,19 @@ android {
         applicationId = "app.folga.android"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 4
+        versionName = "1.2"
     }
-
-    buildFeatures {
-        compose = true
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-
-    signingConfigs {
-        create("release") {
-            val storeFilePath = resolveSigningProperty("KEYSTORE_FILE")
-            if (storeFilePath != null) {
-                storeFile = rootProject.file(storeFilePath)
-                storePassword = resolveSigningProperty("KEYSTORE_PASSWORD")
-                keyAlias = resolveSigningProperty("KEY_ALIAS")
-                keyPassword = resolveSigningProperty("KEY_PASSWORD")
-            }
-        }
-    }
-
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-            // Use the release signingConfig only when a keystore is actually
-            // wired up; otherwise fall back to the debug keystore so the
-            // release build task still completes on a clean machine without
-            // exposing any real signing identity.
-            val releaseSigning = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigning.storeFile != null) {
-                releaseSigning
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            isMinifyEnabled = false
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -166,5 +119,6 @@ android {
 }
 
 dependencies {
-    debugImplementation(compose.uiTooling)
+    // BOM do Firebase (deve ficar fora do bloco kotlin para suportar platform())
+    implementation(platform(libs.firebase.bom))
 }

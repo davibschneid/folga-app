@@ -21,12 +21,11 @@ struct iosAppApp: App {
         // call crashes with "Could not locate configuration file".
         FirebaseApp.configure()
 
-        // Installs the Swift implementation of `IosGoogleSignInBridge` so that
-        // the shared Kotlin code can trigger the Google Sign-In SDK flow.
-        // Must happen after `FirebaseApp.configure()` so that the GoogleSignIn
-        // SDK can read its config from the bundled plist.
-        // See `_templates/GoogleSignInBridge.swift` for the implementation.
+        // Installs the Swift implementation of `IosGoogleSignInBridge` and
+        // `IosMessagingBridge` so that the shared Kotlin code can trigger
+        // native SDK flows.
         GoogleSignInBridgeBootstrap.install()
+        MessagingBridgeBootstrap.install()
     }
 
     var body: some Scene {

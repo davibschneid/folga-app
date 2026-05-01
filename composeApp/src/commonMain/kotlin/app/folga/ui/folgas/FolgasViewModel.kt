@@ -6,6 +6,8 @@ import app.folga.domain.AuthRepository
 import app.folga.domain.Folga
 import app.folga.domain.FolgaRepository
 import app.folga.domain.FolgaStatus
+import app.folga.domain.Holiday
+import app.folga.domain.HolidayRepository
 import app.folga.domain.Shift
 import app.folga.domain.SwapRepository
 import app.folga.domain.SwapRequest
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -30,6 +33,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 
 data class FolgasUiState(
@@ -71,10 +75,15 @@ class FolgasViewModel(
     private val folgaRepository: FolgaRepository,
     private val userRepository: UserRepository,
     private val swapRepository: SwapRepository,
+    private val holidayRepository: HolidayRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FolgasUiState())
     val state: StateFlow<FolgasUiState> = _state.asStateFlow()
+
+    val holidays: StateFlow<List<Holiday>> = flow {
+        emit(holidayRepository.getHolidays(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Works for any Flow<User?> (stub or Firebase-backed) — no unsafe downcast.
     val currentUser: StateFlow<User?> = authRepository.currentUser
@@ -175,6 +184,8 @@ class FolgasViewModel(
     fun onNoteChange(v: String) = _state.update {
         it.copy(newFolgaNote = v, error = null, successMessage = null)
     }
+
+    fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
 
     fun reserve() {
         val me = currentUser.value ?: run {

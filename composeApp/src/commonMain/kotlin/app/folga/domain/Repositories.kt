@@ -161,3 +161,17 @@ interface AuthRepository {
 interface PhotoStorageRepository {
     suspend fun upload(userId: String, bytes: ByteArray): String
 }
+
+/**
+ * Consulta de feriados nacionais via API externa usando Ktor.
+ * Auxilia o usuário a identificar dias de folga estratégicos.
+ */
+interface HolidayRepository {
+    suspend fun getHolidays(year: Int): List<Holiday>
+}
+
+data class Holiday(
+    val date: LocalDate,
+    val name: String,
+    val type: String
+)

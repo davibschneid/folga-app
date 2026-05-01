@@ -29,3 +29,11 @@ interface MessagingTokenRepository {
      */
     suspend fun clearToken(userId: String)
 }
+
+/**
+ * Interface para obter o token de registro (FCM) de forma nativa
+ * em cada plataforma (Android/iOS).
+ */
+interface NativeMessagingService {
+    suspend fun getRegistrationToken(): String?
+}

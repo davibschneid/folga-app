@@ -1,7 +1,9 @@
 package app.folga.di
 
+import app.folga.IosNativeMessagingService
 import app.folga.auth.GoogleSignInProvider
 import app.folga.auth.IosGoogleSignInProvider
+import app.folga.domain.NativeMessagingService
 import org.koin.dsl.module
 
 actual val platformModule = module {
@@ -13,4 +15,5 @@ actual val platformModule = module {
     // Until the bridge is installed the provider returns a user-visible
     // "not initialised" failure — it never crashes.
     single<GoogleSignInProvider> { IosGoogleSignInProvider() }
+    single<NativeMessagingService> { IosNativeMessagingService() }
 }

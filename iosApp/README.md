@@ -86,6 +86,7 @@ Dependencies…**, adicione dois pacotes:
    - Products a marcar no target `iosApp`:
      - `FirebaseAuth`
      - `FirebaseFirestore`
+     - `FirebaseMessaging`
 
 2. **GoogleSignIn-iOS** — `https://github.com/google/GoogleSignIn-iOS`
    - Version: `7.1.0` ou superior
@@ -93,15 +94,13 @@ Dependencies…**, adicione dois pacotes:
      - `GoogleSignIn`
      - `GoogleSignInSwift`
 
-### 4.1 Copiar `GoogleSignInBridge.swift` pro target
+### 4.1 Copiar `GoogleSignInBridge.swift` e `MessagingBridge.swift` pro target
 
-No Xcode: arraste `_templates/GoogleSignInBridge.swift` pra dentro do target
-`iosApp` (mesmo jeito que os outros templates). Esse arquivo é o Swift-side
-do `IosGoogleSignInBridge` que o Kotlin shared usa pra chamar o SDK nativo —
-veja [`_templates/GoogleSignInBridge.swift`](./_templates/GoogleSignInBridge.swift).
-O `iosAppApp.swift` do template já instala o bridge em `init()` via
-`GoogleSignInBridgeBootstrap.install()`, então você não precisa chamar nada
-manualmente depois.
+No Xcode: arraste `_templates/GoogleSignInBridge.swift` e `_templates/MessagingBridge.swift` pra dentro do target
+iosApp (mesmo jeito que os outros templates). Esses arquivos são o Swift-side
+dos bridges que o Kotlin shared usa pra chamar o SDK nativo.
+O `iosAppApp.swift` do template já instala os bridges em `init()` via
+`GoogleSignInBridgeBootstrap.install()` e `MessagingBridgeBootstrap.install()`.
 
 ### 4.2 URL scheme (`REVERSED_CLIENT_ID`) no Info.plist
 

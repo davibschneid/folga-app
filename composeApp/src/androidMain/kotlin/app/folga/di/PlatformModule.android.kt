@@ -1,8 +1,10 @@
 package app.folga.di
 
+import app.folga.AndroidNativeMessagingService
 import app.folga.auth.ActivityContextHolder
 import app.folga.auth.CredentialManagerGoogleSignInProvider
 import app.folga.auth.GoogleSignInProvider
+import app.folga.domain.NativeMessagingService
 import org.koin.dsl.module
 
 actual val platformModule = module {
@@ -13,4 +15,5 @@ actual val platformModule = module {
     // Manager has somewhere to render its bottom sheet.
     single { ActivityContextHolder() }
     single<GoogleSignInProvider> { CredentialManagerGoogleSignInProvider(get()) }
+    single<NativeMessagingService> { AndroidNativeMessagingService() }
 }
