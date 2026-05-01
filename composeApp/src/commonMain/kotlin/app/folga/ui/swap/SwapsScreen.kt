@@ -1,12 +1,16 @@
 package app.folga.ui.swap
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,7 +27,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -270,13 +276,26 @@ fun SwapsScreen(
             val atLimit = quota?.atOrAboveQuota == true
             Button(
                 onClick = viewModel::requestSwap,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !state.isLoading && !atLimit,
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0088FF)),
             ) {
-                Text(
-                    if (atLimit) "Limite de trocas atingido no período"
-                    else "Solicitar troca",
-                )
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (atLimit) "LIMITE ATINGIDO"
+                        else "SOLICITAR TROCA",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
             }
 
             // Listas de Recebidas/Enviadas usam o mesmo `ShiftSwapCard`
@@ -495,10 +514,10 @@ private fun UserChips(
 /**
  * Linha de filtro multi-select de status. Aplicada simultaneamente em
  * Recebidas e Enviadas (pedido do cliente: "se aplica para as duas
- * listagens"). FlowRow pra quebrar quando os 4 status + botão Limpar
- * não cabem na largura.
+ * listagens"). Row horizontal com scroll para manter todos os chips
+ * em uma única linha.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatusFilterRow(
     selected: Set<SwapStatus>,
@@ -507,30 +526,64 @@ private fun StatusFilterRow(
 ) {
     val allSelected = selected.size == SwapStatus.entries.size
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
             Text(
-                text = "Filtrar trocas por status",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
+                text = "Filtrar:",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Gray,
+                modifier = Modifier.padding(end = 8.dp),
+                maxLines = 1,
+                softWrap = false
             )
-            // "Limpar" só faz sentido quando o filtro saiu do default
-            // (== todos selecionados). Quando todos já estão marcados,
-            // limpar não muda nada — escondemos pra não confundir.
-            if (!allSelected) {
-                TextButton(onClick = onClear) { Text("Limpar") }
+            Row(
+                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SwapStatus.entries.forEach { status ->
+                    val isSelected = status in selected
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (isSelected) Color(0xFFE8DEF8) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .border(
+                                width = if (isSelected) 0.dp else 1.dp,
+                                color = if (isSelected) Color.Transparent else Color(0xFFE0E0E0),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { onToggle(status) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = swapStatusLabel(status),
+                            fontSize = 15.sp,
+                            color = if (isSelected) Color(0xFF1D192B) else Color.Gray,
+                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            SwapStatus.entries.forEach { status ->
-                FilterChip(
-                    selected = status in selected,
-                    onClick = { onToggle(status) },
-                    label = { Text(swapStatusLabel(status)) },
+        if (!allSelected) {
+            TextButton(
+                onClick = onClear,
+                modifier = Modifier.height(24.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(
+                    text = "Limpar filtros",
+                    fontSize = 10.sp,
+                    color = Color(0xFF0088FF)
                 )
             }
         }
