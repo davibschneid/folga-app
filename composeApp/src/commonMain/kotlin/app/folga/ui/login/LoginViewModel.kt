@@ -69,6 +69,10 @@ class LoginViewModel(
     fun dismissError() = _state.update { it.copy(error = null) }
     fun dismissInfo() = _state.update { it.copy(infoMessage = null) }
 
+    fun clearMessages() {
+        _state.update { it.copy(error = null, infoMessage = null) }
+    }
+
     /**
      * Fluxo "Esqueci minha senha": reaproveita o e-mail digitado no
      * campo de Login e dispara o envio do link de redefinição via

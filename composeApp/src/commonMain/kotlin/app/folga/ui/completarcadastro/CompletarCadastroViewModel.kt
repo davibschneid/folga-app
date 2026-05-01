@@ -45,6 +45,10 @@ class CompletarCadastroViewModel(
     fun dismissError() = _state.update { it.copy(error = null) }
     fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
 
+    fun clearMessages() {
+        _state.update { it.copy(error = null, successMessage = null) }
+    }
+
     fun submit() {
         val c = _state.value
         if (c.registrationNumber.isBlank() || c.team.isBlank()) {

@@ -167,6 +167,19 @@ class SwapsViewModel(
     fun selectMy(id: String) = _state.update { it.copy(selectedMyFolgaId = id, error = null, successMessage = null) }
     fun selectTargetUser(userId: String) =
         _state.update { it.copy(selectedTargetUserId = userId, error = null, successMessage = null) }
+
+    fun clearSelection() {
+        _state.update {
+            it.copy(
+                selectedMyFolgaId = null,
+                selectedTargetUserId = null,
+                message = "",
+                error = null,
+                successMessage = null,
+            )
+        }
+    }
+
     fun onMessageChange(v: String) = _state.update { it.copy(message = v, error = null, successMessage = null) }
 
     fun dismissError() = _state.update { it.copy(error = null) }

@@ -39,6 +39,12 @@ fun FolgasScreen(
     val folgas by viewModel.folgas.collectAsStateWithLifecycle()
     val holidays by viewModel.holidays.collectAsStateWithLifecycle()
     
+    // Sempre que a tela inicial (Home) for aberta, limpamos mensagens
+    // de sucesso/erro residuais de operações anteriores.
+    LaunchedEffect(Unit) {
+        viewModel.clearMessages()
+    }
+
     // Filtramos apenas as confirmadas para a seção "Meus dias cadastrados"
     // embora no mock principal apareça apenas "Trocas Agendadas".
     val myScheduled = folgas
