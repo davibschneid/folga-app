@@ -106,7 +106,7 @@ Só o dono do dia pode cancelar. Só é possível cancelar dias em
 `SCHEDULED`. A operação é transacional no Firestore para evitar corrida
 com `accept()` de uma troca que estava mirando nesse dia.
 
-### 2.4 Marcação visual "Aguardando" em dia com troca pendente ✅ (PR #41)
+### 2.4 Marcação visual "Aguardando" em dia com solicitação em aberto ✅ (PR #41, PR #52)
 Na tela **Trocar dia de trabalho**, na lista "Meus dias cadastrados":
 se o dia está como `fromFolgaId` de uma troca `PENDING` aberta pelo
 usuário, a chip recebe o sufixo " · Aguardando" em laranja e fica
@@ -115,8 +115,8 @@ abrir uma 2ª troca pra um dia que já tem solicitação em aberto.
 
 Pra reforçar (defesa em profundidade), `SwapsViewModel.requestSwap()`
 rejeita a submissão se a folga selecionada estiver no
-`folgaIdsAwaiting.value` (PR #42), com a mensagem _"Esse dia já tem
-uma troca pendente."_ Cobre o caso onde o estado da UI estava stale
+`folgaIdsAwaiting.value` (PR #42, PR #52), com a mensagem _"Esse dia já tem
+uma solicitação aguardando."_ Cobre o caso onde o estado da UI estava stale
 (ex.: `outgoing` ainda não carregou do Firestore).
 
 ## 3. Trocas de dia de trabalho
@@ -255,10 +255,10 @@ Implementado em `SwapsViewModel.accept(swapId)`:
 A ação é silenciosa — não há prompt nem mensagem. As trocas
 auto-recusadas aparecem como `REJECTED` na lista do solicitante.
 
-### 3.6 Filtros de status nas listas ✅ (PR #46, PR #51)
+### 3.6 Filtros de status nas listas ✅ (PR #46, PR #51, PR #52)
 
 A tela **Trocar dia de trabalho** tem um filtro multi-select por
-status (compartilhado entre Recebidas e Enviadas) com chips: `Pendente`,
+status (compartilhado entre Recebidas e Enviadas) com chips: `Aguardando`,
 `Confirmada`, `Recusada`, `Cancelada`.
 
 - Default: todos selecionados (mesma listagem de antes do filtro).
@@ -267,6 +267,8 @@ status (compartilhado entre Recebidas e Enviadas) com chips: `Pendente`,
 - Estado é mantido só durante a sessão da tela
   (`rememberSaveable` cobre rotação/recomposição, não persiste
   entre navegações).
+- O label "Pendente" foi renomeado para **"Aguardando"** em PR #52 para
+  manter a consistência com o restante do sistema.
 - O label "Aceita" foi renomeado para **"Confirmada"** em PR #51 pra
   alinhar com o badge verde mostrado no card.
 
@@ -501,10 +503,10 @@ Android e iOS — o app funciona sem rede e sincroniza quando voltar.
 
 ### "Por que meu botão de Solicitar troca está desabilitado?"
 Você atingiu a quota de trocas no período corrente (dia 16 ao dia 15).
-Desde o PR #37, trocas `PENDING` e `ACCEPTED` consomem quota. O botão
-volta a ficar disponível quando:
+Desde o PR #37, trocas `PENDING` (Aguardando) e `ACCEPTED` (Confirmada)
+consumem quota. O botão volta a ficar disponível quando:
 - Começa um novo período (dia 16).
-- Uma das suas trocas `PENDING` é recusada/cancelada (libera vaga
+- Uma das suas solicitações **Aguardando** é recusada/cancelada (libera vaga
   imediatamente).
 - Uma troca `ACCEPTED` é revertida (hoje o app não suporta cancelar
   troca já aceita — então, na prática, só com a virada do período).
@@ -541,14 +543,14 @@ em `CANCELLED` não bloqueiam novo cadastro.
 dá pra trocar o turno de um dia que já está em curso.
 
 ### "O chip de um dia ficou cinza com 'Aguardando' do lado."
-Esse dia já tem uma troca pendente que você abriu. Aguarde o colega
+Esse dia já tem uma solicitação aguardando que você abriu. Aguarde o colega
 aceitar/recusar (ou cancele a troca em **Enviadas**) pra liberar o dia
 pra uma nova solicitação.
 
-### "Por que minha quota baixou se a troca ainda está pendente?"
-Desde o PR #37, trocas `PENDING` também consomem quota — o pendente
-já ocupa a vaga até ser resolvido. Se for recusada/cancelada a vaga
-volta, se for aceita continua consumindo.
+### "Por que minha quota baixou se a troca ainda está aguardando?"
+Desde o PR #37, trocas `PENDING` também consomem quota — o status
+Aguardando já ocupa a vaga até ser resolvido. Se for recusada/cancelada
+a vaga volta, se for aceita continua consumindo.
 
 ### "Esqueci minha senha — como redefino?"
 Na tela de Login tem o link **"Esqueci minha senha"** abaixo do
@@ -581,4 +583,5 @@ configurações do Android — provavelmente o build do device é antigo.
 de status, logout volta pra Login), #47 (redesign Login), #49/#50
 (esqueci minha senha com gate por `allowed_emails`), #51 (filtro
 "Confirmada", bloqueio de cadastro em data com troca aceita, copy
-dos cards sensível ao status + perspectiva, logout estável).
+dos cards sensível ao status + perspectiva, logout estável), #52
+(Refinar terminologia 'Aguardando' e label do filtro de status).
