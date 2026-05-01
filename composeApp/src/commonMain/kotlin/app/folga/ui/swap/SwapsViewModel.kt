@@ -164,9 +164,14 @@ class SwapsViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun selectMy(id: String) = _state.update { it.copy(selectedMyFolgaId = id, error = null, successMessage = null) }
-    fun selectTargetUser(userId: String) =
-        _state.update { it.copy(selectedTargetUserId = userId, error = null, successMessage = null) }
+    fun selectMy(id: String) = _state.update { 
+        val newId = if (it.selectedMyFolgaId == id) null else id
+        it.copy(selectedMyFolgaId = newId, error = null, successMessage = null) 
+    }
+    fun selectTargetUser(userId: String) = _state.update { 
+        val newUserId = if (it.selectedTargetUserId == userId) null else userId
+        it.copy(selectedTargetUserId = newUserId, error = null, successMessage = null) 
+    }
 
     fun clearSelection() {
         _state.update {

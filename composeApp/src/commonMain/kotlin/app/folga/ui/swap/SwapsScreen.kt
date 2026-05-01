@@ -1,6 +1,8 @@
 package app.folga.ui.swap
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -531,7 +534,7 @@ private fun StatusFilterRow(
                 text = "Filtrar:",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray,
-                modifier = Modifier.padding(end = 6.dp)
+                modifier = Modifier.padding(end = 4.dp)
             )
             Row(
                 modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
@@ -539,12 +542,30 @@ private fun StatusFilterRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SwapStatus.entries.forEach { status ->
-                    FilterChip(
-                        selected = status in selected,
-                        onClick = { onToggle(status) },
-                        label = { Text(swapStatusLabel(status), fontSize = 10.sp) },
-                        modifier = Modifier.height(24.dp)
-                    )
+                    val isSelected = status in selected
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (isSelected) Color(0xFFE8DEF8) else Color.Transparent,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .border(
+                                width = if (isSelected) 0.dp else 0.5.dp,
+                                color = if (isSelected) Color.Transparent else Color(0xFFE0E0E0),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .clickable { onToggle(status) }
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = swapStatusLabel(status),
+                            fontSize = 9.sp,
+                            color = if (isSelected) Color(0xFF1D192B) else Color.Gray,
+                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
@@ -552,7 +573,7 @@ private fun StatusFilterRow(
             TextButton(
                 onClick = onClear,
                 modifier = Modifier.height(24.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
                     text = "Limpar filtros",
