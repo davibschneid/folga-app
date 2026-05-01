@@ -219,7 +219,7 @@ class SwapsViewModel(
         // pendente.
         if (myId in folgaIdsAwaiting.value) {
             _state.update {
-                it.copy(error = "Esse dia já tem uma troca pendente.")
+                it.copy(error = "Esse dia já tem uma solicitação aguardando.")
             }
             return
         }
@@ -259,7 +259,7 @@ class SwapsViewModel(
                 _state.update {
                     it.copy(
                         error = "O colega selecionado já tem um agendamento ou " +
-                            "troca em aberto para essa data e não pode assumir " +
+                            "solicitação aguardando para essa data e não pode assumir " +
                             "a solicitação.",
                     )
                 }

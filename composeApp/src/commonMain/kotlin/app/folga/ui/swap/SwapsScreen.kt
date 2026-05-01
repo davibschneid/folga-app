@@ -501,7 +501,7 @@ private fun StatusFilterRow(
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Filtrar por status",
+                text = "Filtrar trocas por status",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
@@ -530,7 +530,7 @@ private fun StatusFilterRow(
 }
 
 private fun swapStatusLabel(status: SwapStatus): String = when (status) {
-    SwapStatus.PENDING -> "Pendente"
+    SwapStatus.PENDING -> "Aguardando"
     // "Confirmada" alinha com o badge na home (StatusBadge.kt) — usar
     // "Aceita" no filtro confundia o usuário porque não batia com o
     // texto verde mostrado no card.
