@@ -528,17 +528,21 @@ private fun StatusFilterRow(
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
         ) {
             Text(
                 text = "Filtrar:",
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
                 color = Color.Gray,
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(end = 8.dp),
+                maxLines = 1,
+                softWrap = false
             )
             Row(
                 modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SwapStatus.entries.forEach { status ->
@@ -547,23 +551,24 @@ private fun StatusFilterRow(
                         modifier = Modifier
                             .background(
                                 color = if (isSelected) Color(0xFFE8DEF8) else Color.Transparent,
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
                             .border(
-                                width = if (isSelected) 0.dp else 0.5.dp,
+                                width = if (isSelected) 0.dp else 1.dp,
                                 color = if (isSelected) Color.Transparent else Color(0xFFE0E0E0),
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
                             .clickable { onToggle(status) }
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = swapStatusLabel(status),
-                            fontSize = 9.sp,
+                            fontSize = 15.sp,
                             color = if (isSelected) Color(0xFF1D192B) else Color.Gray,
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                            maxLines = 1
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
