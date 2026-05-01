@@ -2,6 +2,7 @@ package app.folga.ui.swap
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -510,10 +511,10 @@ private fun UserChips(
 /**
  * Linha de filtro multi-select de status. Aplicada simultaneamente em
  * Recebidas e Enviadas (pedido do cliente: "se aplica para as duas
- * listagens"). FlowRow pra quebrar quando os 4 status + botão Limpar
- * não cabem na largura.
+ * listagens"). Row horizontal com scroll para manter todos os chips
+ * em uma única linha.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatusFilterRow(
     selected: Set<SwapStatus>,
@@ -522,30 +523,41 @@ private fun StatusFilterRow(
 ) {
     val allSelected = selected.size == SwapStatus.entries.size
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "Filtrar trocas por status",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
+                text = "Filtrar:",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                modifier = Modifier.padding(end = 6.dp)
             )
-            // "Limpar" só faz sentido quando o filtro saiu do default
-            // (== todos selecionados). Quando todos já estão marcados,
-            // limpar não muda nada — escondemos pra não confundir.
-            if (!allSelected) {
-                TextButton(onClick = onClear) { Text("Limpar") }
+            Row(
+                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SwapStatus.entries.forEach { status ->
+                    FilterChip(
+                        selected = status in selected,
+                        onClick = { onToggle(status) },
+                        label = { Text(swapStatusLabel(status), fontSize = 10.sp) },
+                        modifier = Modifier.height(24.dp)
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            SwapStatus.entries.forEach { status ->
-                FilterChip(
-                    selected = status in selected,
-                    onClick = { onToggle(status) },
-                    label = { Text(swapStatusLabel(status)) },
+        if (!allSelected) {
+            TextButton(
+                onClick = onClear,
+                modifier = Modifier.height(24.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+            ) {
+                Text(
+                    text = "Limpar filtros",
+                    fontSize = 10.sp,
+                    color = Color(0xFF0088FF)
                 )
             }
         }
