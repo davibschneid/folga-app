@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -270,13 +272,26 @@ fun SwapsScreen(
             val atLimit = quota?.atOrAboveQuota == true
             Button(
                 onClick = viewModel::requestSwap,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !state.isLoading && !atLimit,
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0088FF)),
             ) {
-                Text(
-                    if (atLimit) "Limite de trocas atingido no período"
-                    else "Solicitar troca",
-                )
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (atLimit) "LIMITE ATINGIDO"
+                        else "SOLICITAR TROCA",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
             }
 
             // Listas de Recebidas/Enviadas usam o mesmo `ShiftSwapCard`

@@ -19,7 +19,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,6 +65,7 @@ fun AdminScreen(
     val isError by viewModel.isError.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
     val newEmail by viewModel.newEmail.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     // Limpa mensagens residuais ao entrar na tela de admin.
     LaunchedEffect(Unit) {
@@ -134,6 +137,7 @@ fun AdminScreen(
                 else -> EmailsTab(
                     emails = allowedEmails,
                     newEmail = newEmail,
+                    isLoading = isLoading,
                     onNewEmailChange = viewModel::onNewEmailChange,
                     onAdd = viewModel::addEmail,
                     onRemove = viewModel::removeEmail,
@@ -220,6 +224,7 @@ private fun UserRow(
 private fun EmailsTab(
     emails: List<AllowedEmail>,
     newEmail: String,
+    isLoading: Boolean,
     onNewEmailChange: (String) -> Unit,
     onAdd: () -> Unit,
     onRemove: (String) -> Unit,
@@ -240,8 +245,27 @@ private fun EmailsTab(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                    Text("Autorizar")
+                Button(
+                    onClick = onAdd,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0088FF)),
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            "AUTORIZAR",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -230,10 +231,20 @@ fun ProfileScreen(
             Spacer(Modifier.height(20.dp))
             Button(
                 onClick = viewModel::save,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !state.isSaving,
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0088FF)),
             ) {
-                if (state.isSaving) CircularProgressIndicator() else Text("Salvar")
+                if (state.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("SALVAR", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                }
             }
             Spacer(Modifier.height(24.dp))
             ShortcutsSection(

@@ -49,6 +49,9 @@ class AdminViewModel(
     private val _newEmail = MutableStateFlow("")
     val newEmail: StateFlow<String> = _newEmail.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     fun onNewEmailChange(value: String) {
         _newEmail.value = value
     }
@@ -106,6 +109,7 @@ class AdminViewModel(
         val normalized = AdminBootstrap.normalize(raw)
         val currentEmail = currentUser.value?.email ?: ""
         viewModelScope.launch {
+            _isLoading.value = true
             runCatching { allowedEmailRepository.add(normalized, addedBy = currentEmail) }
                 .onSuccess {
                     _newEmail.value = ""
@@ -116,6 +120,7 @@ class AdminViewModel(
                     _isError.value = true
                     _message.value = it.message ?: "Erro ao autorizar e-mail."
                 }
+            _isLoading.value = false
         }
     }
 
