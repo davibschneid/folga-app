@@ -83,15 +83,18 @@ fun ShiftSwapCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = "Troca de trabalho",
+                    text = buildAnnotatedString {
+                        append("Troca de Trabalho")
+                        if (date != null) {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                append(" - ${formatLong(date)}")
+                            }
+                        }
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text = date?.let { formatShort(it) } ?: "—",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                StatusBadge(status = status)
             }
             Spacer(Modifier.height(8.dp))
             Row(
@@ -133,12 +136,6 @@ fun ShiftSwapCard(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            // Status badge sempre numa linha só (à esquerda). Quando o
-            // card tem ações (Aceitar/Recusar/Cancelar), elas vão numa
-            // linha separada abaixo do badge — evita quebra do label
-            // "Recusar" em telas estreitas (4xx px) onde StatusBadge +
-            // 2 botões não caberiam lado a lado no mesmo Row.
-            StatusBadge(status = status)
             if (actions != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(
@@ -321,4 +318,33 @@ private fun formatShort(date: LocalDate): String {
     val d = date.dayOfMonth.toString().padStart(2, '0')
     val m = date.monthNumber.toString().padStart(2, '0')
     return "$d/$m"
+}
+
+private fun formatLong(date: LocalDate): String {
+    val dow = when (date.dayOfWeek) {
+        kotlinx.datetime.DayOfWeek.MONDAY -> "Seg"
+        kotlinx.datetime.DayOfWeek.TUESDAY -> "Ter"
+        kotlinx.datetime.DayOfWeek.WEDNESDAY -> "Qua"
+        kotlinx.datetime.DayOfWeek.THURSDAY -> "Qui"
+        kotlinx.datetime.DayOfWeek.FRIDAY -> "Sex"
+        kotlinx.datetime.DayOfWeek.SATURDAY -> "Sáb"
+        kotlinx.datetime.DayOfWeek.SUNDAY -> "Dom"
+        else -> ""
+    }
+    val month = when (date.monthNumber) {
+        1 -> "Jan"
+        2 -> "Fev"
+        3 -> "Mar"
+        4 -> "Abr"
+        5 -> "Mai"
+        6 -> "Jun"
+        7 -> "Jul"
+        8 -> "Ago"
+        9 -> "Set"
+        10 -> "Out"
+        11 -> "Nov"
+        12 -> "Dez"
+        else -> ""
+    }
+    return "$dow, ${date.dayOfMonth.toString().padStart(2, '0')} $month"
 }
