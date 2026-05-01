@@ -642,6 +642,7 @@ private fun SwapCardWithActions(
         date = date,
         status = swap.status,
         viewerRole = viewerRole,
+        note = swap.message,
         // ShiftSwapCard já envelopa as actions num Row próprio (em
         // linha separada do badge) com spacedBy(8.dp), então só
         // precisamos passar as ações cruas — sem Row extra.

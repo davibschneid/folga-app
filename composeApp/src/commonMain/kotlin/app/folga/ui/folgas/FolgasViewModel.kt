@@ -61,6 +61,7 @@ data class ScheduledSwap(
     val targetPhotoUrl: String?,
     val targetShift: Shift?,
     val date: LocalDate?,
+    val note: String?,
     /**
      * `true` se o usuário atual é o requester da troca (Dia Cedido —
      * abriu mão do dia), `false` se é o target (Dia Assumido — vai
@@ -162,6 +163,7 @@ class FolgasViewModel(
                     targetPhotoUrl = target?.photoUrl,
                     targetShift = target?.shift,
                     date = folgaById[swap.fromFolgaId]?.date,
+                    note = swap.message,
                     iAmRequester = me?.id == swap.requesterId,
                 )
             }

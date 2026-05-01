@@ -67,6 +67,7 @@ fun ShiftSwapCard(
     status: SwapStatus,
     viewerRole: SwapViewerRole?,
     modifier: Modifier = Modifier,
+    note: String? = null,
     actions: (@Composable () -> Unit)? = null,
 ) {
     Card(
@@ -122,6 +123,15 @@ fun ShiftSwapCard(
                 ),
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (!note.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Light,
+                )
+            }
             Spacer(Modifier.height(8.dp))
             // Status badge sempre numa linha só (à esquerda). Quando o
             // card tem ações (Aceitar/Recusar/Cancelar), elas vão numa
