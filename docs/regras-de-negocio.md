@@ -159,8 +159,8 @@ apenas assume o dia que o solicitante cadastrou.
 | `NOITE`     | 3                 |
 
 **O que conta (atualizado em PR #37):**
-- **Trocas `PENDING` e `ACCEPTED`** consomem quota — o pendente já
-  ocupa a vaga até ser resolvido. `REJECTED` e `CANCELLED` **não**
+- **Trocas `PENDING` e `ACCEPTED`** consomem quota — a solicitação aguardando
+  já ocupa a vaga até ser resolvido. `REJECTED` e `CANCELLED` **não**
   consomem.
 - **Só quem iniciou** (o `requesterId`). O alvo (`targetId`) **não**
   consome quota da própria conta — mesmo aceitando uma troca, o alvo pode
@@ -246,7 +246,7 @@ Implementado em `SwapsViewModel.accept(swapId)`:
    `PENDING`).
 2. Resolve a `conflictDate` via `allFolgas` + `fromFolgaId`.
 3. Após o `accept` rodar com sucesso, percorre `incoming` e chama
-   `swapRepository.reject(siblingId)` em cada troca pendente que cai
+   `swapRepository.reject(siblingId)` em cada troca aguardando que cai
    na mesma data.
 4. Idempotência: o guard `PENDING` dentro do `resolvePending` no
    Firestore garante que se o requester cancelar primeiro, o
@@ -561,7 +561,7 @@ confirmar se está na lista de e-mails autorizados.
 
 ### "Aceitei uma troca e outra solicitação que eu tinha foi marcada como Recusada — por quê?"
 Desde o PR #46, ao aceitar uma troca o app **automaticamente recusa**
-qualquer outra solicitação `PENDING` que você tenha recebido pra a
+qualquer outra solicitação `PENDING` (Aguardando) que você tenha recebido pra a
 **mesma data** — você não pode trabalhar dois turnos no mesmo dia. As
 trocas afetadas aparecem como `RECUSADA` na lista do solicitante; ele
 pode tentar com outro colega.
