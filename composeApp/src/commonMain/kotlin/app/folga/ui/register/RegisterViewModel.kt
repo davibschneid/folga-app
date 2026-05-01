@@ -38,6 +38,10 @@ class RegisterViewModel(
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
+    fun clearMessages() {
+        _state.update { it.copy(error = null) }
+    }
+
     fun submit() {
         val c = _state.value
         if (c.name.isBlank() || c.email.isBlank() || c.password.length < 6 ||

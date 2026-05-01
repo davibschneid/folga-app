@@ -33,6 +33,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +63,11 @@ fun AdminScreen(
     val isError by viewModel.isError.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
     val newEmail by viewModel.newEmail.collectAsStateWithLifecycle()
+
+    // Limpa mensagens residuais ao entrar na tela de admin.
+    LaunchedEffect(Unit) {
+        viewModel.clearMessage()
+    }
 
     var selectedTab by remember { mutableStateOf(0) }
 

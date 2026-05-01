@@ -188,6 +188,10 @@ class FolgasViewModel(
     fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
     fun dismissError() = _state.update { it.copy(error = null) }
 
+    fun clearMessages() {
+        _state.update { it.copy(error = null, successMessage = null) }
+    }
+
     fun reserve() {
         val me = currentUser.value ?: run {
             // Todos os paths que setam `error` devem também limpar

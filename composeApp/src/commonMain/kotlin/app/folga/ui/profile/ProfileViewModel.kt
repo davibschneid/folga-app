@@ -120,6 +120,10 @@ class ProfileViewModel(
     fun dismissError() = _state.update { it.copy(error = null) }
     fun dismissSuccess() = _state.update { it.copy(savedMessage = null) }
 
+    fun clearMessages() {
+        _state.update { it.copy(error = null, savedMessage = null) }
+    }
+
     /**
      * Chamado pelo `rememberImagePicker` quando o usuário seleciona uma
      * imagem. Sobe os bytes pro Firebase Storage, pega a URL pública e

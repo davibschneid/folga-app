@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +83,13 @@ fun SwapsScreen(
     val outgoing by viewModel.outgoing.collectAsStateWithLifecycle()
     val quota by viewModel.quotaStatus.collectAsStateWithLifecycle()
     val me by viewModel.currentUser.collectAsStateWithLifecycle()
+
+    // Sempre que a tela de Trocas for aberta, limpamos qualquer
+    // seleção residual (colega, dia, mensagem). Garante que o
+    // usuário comece um fluxo novo do zero.
+    LaunchedEffect(Unit) {
+        viewModel.clearSelection()
+    }
 
     // Badge da aba Trocas: mesma lógica do Home, conta só os pendentes
     // que chegaram pra mim. Derivado direto da lista já carregada.
