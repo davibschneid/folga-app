@@ -36,6 +36,8 @@ class RegisterViewModel(
     fun onTeamChange(v: String) = _state.update { it.copy(team = v, error = null) }
     fun onShiftChange(v: Shift) = _state.update { it.copy(shift = v, error = null) }
 
+    fun dismissError() = _state.update { it.copy(error = null) }
+
     fun submit() {
         val c = _state.value
         if (c.name.isBlank() || c.email.isBlank() || c.password.length < 6 ||

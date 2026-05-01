@@ -88,6 +88,7 @@ fun FolgasScreen(
                             onNoteChange = viewModel::onNoteChange,
                             onSubmit = viewModel::reserve,
                             onDismissSuccess = viewModel::dismissSuccess,
+                            onDismissError = viewModel::dismissError,
                         )
                     }
                 }
@@ -207,6 +208,7 @@ private fun RegistrarDiaCard(
     onNoteChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onDismissSuccess: () -> Unit,
+    onDismissError: () -> Unit,
 ) {
     Column {
         Card(
@@ -262,12 +264,31 @@ private fun RegistrarDiaCard(
         }
 
         if (error != null) {
-            Text(
-                error,
+            Surface(
+                modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-                style = MaterialTheme.typography.bodySmall
-            )
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.CheckCircle, null, tint = Color.White) // Mantendo o ícone ou trocando por erro? O CheckCircle em branco fica bom.
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = error,
+                        color = Color.White,
+                        modifier = Modifier.weight(1f),
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "OK",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { onDismissError() }
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(24.dp))

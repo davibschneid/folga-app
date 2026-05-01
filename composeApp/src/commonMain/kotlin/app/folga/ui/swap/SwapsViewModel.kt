@@ -44,6 +44,7 @@ data class SwapQuotaStatus(
 data class SwapsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
+    val successMessage: String? = null,
     val selectedMyFolgaId: String? = null,
     /**
      * Id do colega (User.id) que o usuário selecionou pra assumir o dia.
@@ -163,10 +164,13 @@ class SwapsViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun selectMy(id: String) = _state.update { it.copy(selectedMyFolgaId = id, error = null) }
+    fun selectMy(id: String) = _state.update { it.copy(selectedMyFolgaId = id, error = null, successMessage = null) }
     fun selectTargetUser(userId: String) =
-        _state.update { it.copy(selectedTargetUserId = userId, error = null) }
-    fun onMessageChange(v: String) = _state.update { it.copy(message = v, error = null) }
+        _state.update { it.copy(selectedTargetUserId = userId, error = null, successMessage = null) }
+    fun onMessageChange(v: String) = _state.update { it.copy(message = v, error = null, successMessage = null) }
+
+    fun dismissError() = _state.update { it.copy(error = null) }
+    fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
 
     /**
      * Solicita uma troca. Bloqueia (não submete) se o usuário já está no
@@ -282,10 +286,12 @@ class SwapsViewModel(
                         selectedMyFolgaId = null,
                         selectedTargetUserId = null,
                         message = "",
+                        successMessage = "Solicitação enviada com sucesso!",
+                        error = null,
                     )
                 }
             }.onFailure { e ->
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Erro ao solicitar troca") }
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Erro ao solicitar troca", successMessage = null) }
             }
         }
     }
@@ -302,8 +308,11 @@ class SwapsViewModel(
             val conflictDate = acceptedSwap
                 ?.let { swap -> allFolgas.value.firstOrNull { it.id == swap.fromFolgaId }?.date }
             runCatching { swapRepository.accept(swapId) }
+                .onSuccess {
+                    _state.update { it.copy(successMessage = "Troca confirmada!", error = null) }
+                }
                 .onFailure { e ->
-                    _state.update { it.copy(error = e.message ?: "Erro ao aceitar troca") }
+                    _state.update { it.copy(error = e.message ?: "Erro ao aceitar troca", successMessage = null) }
                     return@launch
                 }
             // Auto-rejeita as outras solicitações pendentes recebidas pelo
@@ -331,14 +340,20 @@ class SwapsViewModel(
     fun reject(swapId: String) {
         viewModelScope.launch {
             runCatching { swapRepository.reject(swapId) }
-                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao recusar troca") } }
+                .onSuccess {
+                    _state.update { it.copy(successMessage = "Troca recusada.", error = null) }
+                }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao recusar troca", successMessage = null) } }
         }
     }
 
     fun cancel(swapId: String) {
         viewModelScope.launch {
             runCatching { swapRepository.cancel(swapId) }
-                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao cancelar troca") } }
+                .onSuccess {
+                    _state.update { it.copy(successMessage = "Troca cancelada.", error = null) }
+                }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Erro ao cancelar troca", successMessage = null) } }
         }
     }
 }

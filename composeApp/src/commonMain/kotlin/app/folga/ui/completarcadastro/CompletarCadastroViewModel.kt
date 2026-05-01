@@ -17,6 +17,7 @@ data class CompletarCadastroUiState(
     val shift: Shift = Shift.MANHA,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val successMessage: String? = null,
 )
 
 /**
@@ -35,19 +36,22 @@ class CompletarCadastroViewModel(
     val state: StateFlow<CompletarCadastroUiState> = _state.asStateFlow()
 
     fun onRegistrationNumberChange(v: String) =
-        _state.update { it.copy(registrationNumber = v, error = null) }
+        _state.update { it.copy(registrationNumber = v, error = null, successMessage = null) }
 
-    fun onTeamChange(v: String) = _state.update { it.copy(team = v, error = null) }
+    fun onTeamChange(v: String) = _state.update { it.copy(team = v, error = null, successMessage = null) }
 
-    fun onShiftChange(v: Shift) = _state.update { it.copy(shift = v, error = null) }
+    fun onShiftChange(v: Shift) = _state.update { it.copy(shift = v, error = null, successMessage = null) }
+
+    fun dismissError() = _state.update { it.copy(error = null) }
+    fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
 
     fun submit() {
         val c = _state.value
         if (c.registrationNumber.isBlank() || c.team.isBlank()) {
-            _state.update { it.copy(error = "Preencha matrícula e equipe") }
+            _state.update { it.copy(error = "Preencha matrícula e equipe", successMessage = null) }
             return
         }
-        _state.update { it.copy(isLoading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null, successMessage = null) }
         viewModelScope.launch {
             val result = authRepository.completeProfile(
                 registrationNumber = c.registrationNumber.trim(),
