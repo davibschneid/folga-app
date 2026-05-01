@@ -102,6 +102,22 @@ class FirestoreSwapRepository(
 
     override suspend fun cancel(swapId: String) = resolvePending(swapId, SwapStatus.CANCELLED)
 
+    override suspend fun cancelByFolga(folgaId: String) {
+        // Busca todos os swaps PENDING onde fromFolgaId coincide com a
+        // folga cancelada. O Firestore não suporta batch update
+        // atômico baseado em query sem o ID do documento, então buscamos
+        // primeiro os IDs e depois resolvemos um a um — cada um com seu
+        // próprio guard de status PENDING via transaction no `resolvePending`.
+        val pendingSwaps = swaps
+            .where { "fromFolgaId" equalTo folgaId }
+            .where { "status" equalTo SwapStatus.PENDING.name }
+            .get()
+        
+        pendingSwaps.documents.forEach { doc ->
+            cancel(doc.id)
+        }
+    }
+
     /**
      * Transactionally transitions a swap out of PENDING into [newStatus]
      * (REJECTED or CANCELLED). The PENDING guard prevents a late reject /

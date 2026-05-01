@@ -43,6 +43,9 @@ class AdminViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    private val _isError = MutableStateFlow(false)
+    val isError: StateFlow<Boolean> = _isError.asStateFlow()
+
     private val _newEmail = MutableStateFlow("")
     val newEmail: StateFlow<String> = _newEmail.asStateFlow()
 
@@ -52,6 +55,7 @@ class AdminViewModel(
 
     fun clearMessage() {
         _message.value = null
+        _isError.value = false
     }
 
     /**
@@ -65,10 +69,12 @@ class AdminViewModel(
     fun toggleRole(target: User) {
         val current = currentUser.value ?: return
         if (target.id == current.id) {
+            _isError.value = true
             _message.value = "Você não pode alterar seu próprio perfil."
             return
         }
         if (AdminBootstrap.isBootstrapAdmin(target.email) && target.role == UserRole.ADMIN) {
+            _isError.value = true
             _message.value = "Este admin não pode ser despromovido (bootstrap)."
             return
         }
@@ -76,19 +82,24 @@ class AdminViewModel(
         viewModelScope.launch {
             runCatching { userRepository.updateRole(target.id, newRole) }
                 .onSuccess {
+                    _isError.value = false
                     _message.value = if (newRole == UserRole.ADMIN) {
                         "${target.name} agora é admin."
                     } else {
                         "${target.name} voltou a ser usuário."
                     }
                 }
-                .onFailure { _message.value = it.message ?: "Erro ao atualizar perfil." }
+                .onFailure {
+                    _isError.value = true
+                    _message.value = it.message ?: "Erro ao atualizar perfil."
+                }
         }
     }
 
     fun addEmail() {
         val raw = _newEmail.value
         if (!looksLikeEmail(raw)) {
+            _isError.value = true
             _message.value = "E-mail inválido."
             return
         }
@@ -98,22 +109,33 @@ class AdminViewModel(
             runCatching { allowedEmailRepository.add(normalized, addedBy = currentEmail) }
                 .onSuccess {
                     _newEmail.value = ""
+                    _isError.value = false
                     _message.value = "E-mail $normalized autorizado."
                 }
-                .onFailure { _message.value = it.message ?: "Erro ao autorizar e-mail." }
+                .onFailure {
+                    _isError.value = true
+                    _message.value = it.message ?: "Erro ao autorizar e-mail."
+                }
         }
     }
 
     fun removeEmail(email: String) {
         val normalized = AdminBootstrap.normalize(email)
         if (normalized in AdminBootstrap.ADMIN_EMAILS) {
+            _isError.value = true
             _message.value = "Admin bootstrap não pode ser removido."
             return
         }
         viewModelScope.launch {
             runCatching { allowedEmailRepository.remove(normalized) }
-                .onSuccess { _message.value = "E-mail $normalized removido." }
-                .onFailure { _message.value = it.message ?: "Erro ao remover e-mail." }
+                .onSuccess {
+                    _isError.value = false
+                    _message.value = "E-mail $normalized removido."
+                }
+                .onFailure {
+                    _isError.value = true
+                    _message.value = it.message ?: "Erro ao remover e-mail."
+                }
         }
     }
 

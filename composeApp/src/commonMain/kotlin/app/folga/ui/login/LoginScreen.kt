@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
@@ -31,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -210,21 +213,60 @@ fun LoginScreen(
                 )
             }
 
-            if (state.error != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = state.error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
             if (state.infoMessage != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = state.infoMessage!!,
-                    color = RoyalBlue,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Surface(
+                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+                    color = Color(0xFF0088FF),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.CheckCircle, null, tint = Color.White)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = state.infoMessage!!,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "OK",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { viewModel.dismissInfo() }
+                        )
+                    }
+                }
+            }
+
+            if (state.error != null) {
+                Surface(
+                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.error,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.CheckCircle, null, tint = Color.White)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = state.error!!,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "OK",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { viewModel.dismissError() }
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(32.dp))

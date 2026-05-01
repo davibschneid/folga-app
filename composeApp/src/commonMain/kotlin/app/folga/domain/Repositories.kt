@@ -54,6 +54,13 @@ interface SwapRepository {
     suspend fun accept(swapId: String)
     suspend fun reject(swapId: String)
     suspend fun cancel(swapId: String)
+    /**
+     * Cancela todas as trocas pendentes associadas a uma folga específica.
+     * Chamado quando o requester cancela a folga de trabalho: como a folga
+     * deixou de existir, todos os pedidos de troca baseados nela perdem
+     * o objeto de troca e devem ser invalidados com status CANCELLED.
+     */
+    suspend fun cancelByFolga(folgaId: String)
     fun observeIncoming(userId: String): Flow<List<SwapRequest>>
     fun observeOutgoing(userId: String): Flow<List<SwapRequest>>
 }

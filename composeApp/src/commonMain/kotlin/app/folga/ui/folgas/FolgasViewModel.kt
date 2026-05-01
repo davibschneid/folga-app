@@ -186,6 +186,7 @@ class FolgasViewModel(
     }
 
     fun dismissSuccess() = _state.update { it.copy(successMessage = null) }
+    fun dismissError() = _state.update { it.copy(error = null) }
 
     fun reserve() {
         val me = currentUser.value ?: run {
@@ -307,6 +308,14 @@ class FolgasViewModel(
 
     fun cancel(folgaId: String) {
         viewModelScope.launch {
+            // Ordem crítica: primeiro cancelamos as trocas pendentes que
+            // dependem desta folga. Se cancelarmos a folga primeiro, um
+            // target rápido poderia tentar aceitar uma troca de uma folga
+            // inexistente/cancelada no exato momento entre as duas chamadas.
+            // O `accept()` tem guard de status, mas cancelar proativamente
+            // os swaps mantém a integridade do estado e evita notificações
+            // fantasmas de "Você tem uma troca" pra folgas que o dono já deletou.
+            swapRepository.cancelByFolga(folgaId)
             folgaRepository.cancel(folgaId)
         }
     }
