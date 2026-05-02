@@ -13,16 +13,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +74,7 @@ fun ShiftSwapCard(
     viewerRole: SwapViewerRole?,
     modifier: Modifier = Modifier,
     note: String? = null,
+    onAddToCalendar: ((String, LocalDate) -> Unit)? = null,
     actions: (@Composable () -> Unit)? = null,
 ) {
     Card(
@@ -93,6 +97,27 @@ fun ShiftSwapCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(8.dp))
+                if (onAddToCalendar != null && date != null && status == SwapStatus.ACCEPTED) {
+                    IconButton(
+                        onClick = {
+                            val title = if (viewerRole == SwapViewerRole.TARGET) {
+                                "Você aceitou trabalhar para $requesterName no dia ${formatShort(date)}"
+                            } else {
+                                "$targetName aceitou trabalhar para você no dia ${formatShort(date)}"
+                            }
+                            onAddToCalendar(title, date)
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DateRange,
+                            contentDescription = "Adicionar à agenda",
+                            tint = Color(0xFF1976D2), // Azul escuro como no mock
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
                 StatusBadge(status = status)
             }
             Spacer(Modifier.height(8.dp))

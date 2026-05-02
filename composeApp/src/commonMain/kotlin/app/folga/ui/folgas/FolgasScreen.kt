@@ -38,6 +38,8 @@ fun FolgasScreen(
     val pendingCount by viewModel.pendingIncomingCount.collectAsStateWithLifecycle()
     val folgas by viewModel.folgas.collectAsStateWithLifecycle()
     val holidays by viewModel.holidays.collectAsStateWithLifecycle()
+
+    val addToCalendar = rememberCalendarManager()
     
     // Sempre que a tela inicial (Home) for aberta, limpamos mensagens
     // de sucesso/erro residuais de operações anteriores.
@@ -130,6 +132,7 @@ fun FolgasScreen(
                                     status = swap.status,
                                     viewerRole = if (swap.iAmRequester) SwapViewerRole.REQUESTER else SwapViewerRole.TARGET,
                                     note = swap.note,
+                                    onAddToCalendar = addToCalendar,
                                 )
                             }
                         }
