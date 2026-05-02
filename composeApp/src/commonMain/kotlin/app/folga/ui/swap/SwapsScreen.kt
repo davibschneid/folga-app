@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -146,20 +147,8 @@ fun SwapsScreen(
                 Spacer(Modifier.height(8.dp))
             }
             quota?.let { q ->
-                // Chip informativo com a quota restante. Cor muda quando
-                // o usuário atinge o limite, pra deixar óbvio que novas
-                // solicitações vão ser bloqueadas.
-                AssistChip(
-                    onClick = {},
-                    label = { Text(quotaChipLabel(q.shift, q.remaining, q.quota)) },
-                    colors = if (q.atOrAboveQuota) {
-                        AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            labelColor = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    } else AssistChipDefaults.assistChipColors(),
-                )
-                Spacer(Modifier.height(8.dp))
+                QuotaProgressCard(q)
+                Spacer(Modifier.height(16.dp))
             }
 
             Text("Solicitar troca", style = MaterialTheme.typography.titleMedium)
@@ -411,13 +400,59 @@ fun SwapsScreen(
 
 }
 
-private fun quotaChipLabel(shift: Shift, remaining: Int, quota: Int): String =
-    "Trocas restantes: $remaining de $quota · ${shiftLabel(shift)}"
+@Composable
+private fun QuotaProgressCard(quota: SwapQuotaStatus) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 16.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Limite Mensal de Trocas",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.Gray,
+                fontSize = 13.sp
+            )
+            Spacer(Modifier.height(12.dp))
 
-private fun shiftLabel(shift: Shift): String = when (shift) {
-    Shift.MANHA -> "Manhã"
-    Shift.TARDE -> "Tarde"
-    Shift.NOITE -> "Noite"
+            val progress = if (quota.quota > 0) quota.used.toFloat() / quota.quota.toFloat() else 0f
+
+            // Progress Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .background(
+                        color = Color(0xFF0088FF).copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(
+                            color = Color(0xFF0088FF),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "${quota.used} de ${quota.quota} trocas no período",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                fontSize = 16.sp
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
