@@ -1,6 +1,8 @@
 package app.folga.ui.common
 
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
 
 /**
  * Formats a [LocalDate] as `DD/MM/AAAA` for display in the Brazilian Portuguese UI.
@@ -14,6 +16,39 @@ fun LocalDate.formatBrazilian(): String {
     val day = dayOfMonth.toString().padStart(2, '0')
     val month = monthNumber.toString().padStart(2, '0')
     return "$day/$month/$year"
+}
+
+/**
+ * Formats a [LocalDate] as `Dia, DD Mes` (e.g. `Segunda, 20 Mai`) for display
+ * in the Brazilian Portuguese UI.
+ */
+fun LocalDate.formatDayAndMonth(): String {
+    val dayName = when (dayOfWeek) {
+        DayOfWeek.MONDAY -> "Seg"
+        DayOfWeek.TUESDAY -> "Ter"
+        DayOfWeek.WEDNESDAY -> "Qua"
+        DayOfWeek.THURSDAY -> "Qui"
+        DayOfWeek.FRIDAY -> "Sex"
+        DayOfWeek.SATURDAY -> "Sáb"
+        DayOfWeek.SUNDAY -> "Dom"
+        else -> ""
+    }
+    val monthName = when (month) {
+        Month.JANUARY -> "Jan"
+        Month.FEBRUARY -> "Fev"
+        Month.MARCH -> "Mar"
+        Month.APRIL -> "Abr"
+        Month.MAY -> "Mai"
+        Month.JUNE -> "Jun"
+        Month.JULY -> "Jul"
+        Month.AUGUST -> "Ago"
+        Month.SEPTEMBER -> "Set"
+        Month.OCTOBER -> "Out"
+        Month.NOVEMBER -> "Nov"
+        Month.DECEMBER -> "Dez"
+        else -> ""
+    }
+    return "$dayName, $dayOfMonth $monthName"
 }
 
 /**
