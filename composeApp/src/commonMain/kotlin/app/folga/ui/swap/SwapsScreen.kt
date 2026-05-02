@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -35,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,9 +71,11 @@ import app.folga.domain.SwapStatus
 import app.folga.domain.User
 import app.folga.ui.common.AppBottomBar
 import app.folga.ui.common.MainTab
+import app.folga.ui.common.ProfileAvatar
 import app.folga.ui.common.ShiftSwapCard
 import app.folga.ui.common.SwapViewerRole
 import app.folga.ui.common.formatBrazilian
+import app.folga.ui.common.formatDayAndMonth
 import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -101,6 +107,9 @@ fun SwapsScreen(
     // Badge da aba Trocas: mesma lógica do Home, conta só os pendentes
     // que chegaram pra mim. Derivado direto da lista já carregada.
     val pendingCount = incoming.count { it.status == SwapStatus.PENDING }
+
+    var showSwapInfo by rememberSaveable { mutableStateOf(false) }
+    var showUserSelectionInfo by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -151,19 +160,46 @@ fun SwapsScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
-            Text("Solicitar troca", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                // Explicação curta do modelo pra o usuário entender o que
-                // acontece depois do aceite. Modelo unidirecional: o colega
-                // escolhido passa a trabalhar no dia que o usuário selecionou
-                // (o usuário fica sem esse dia de trabalho).
-                text = "Selecione um dia seu e escolha um colega. Se ele " +
-                    "aceitar, vai trabalhar no dia selecionado no seu lugar.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Solicitar troca",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFD700),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clickable { showSwapInfo = !showSwapInfo }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "i",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
+
+            if (showSwapInfo) {
+                Text(
+                    // Explicação curta do modelo pra o usuário entender o que
+                    // acontece depois do aceite. Modelo unidirecional: o colega
+                    // escolhido passa a trabalhar no dia que o usuário selecionou
+                    // (o usuário fica sem esse dia de trabalho).
+                    text = "Selecione um dia seu e escolha um colega. Se ele " +
+                        "aceitar, vai trabalhar no dia selecionado no seu lugar.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Spacer(Modifier.height(4.dp))
+            }
 
             Text("Meus dias cadastrados", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
@@ -181,17 +217,42 @@ fun SwapsScreen(
             )
 
             Spacer(Modifier.height(12.dp))
-            Text("Escolha um colega", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                // Regra de negócio: só aparecem colegas do mesmo grupo de
-                // turno do usuário (diurno MANHA/TARDE ou noturno NOITE).
-                text = "A lista mostra apenas colegas do mesmo grupo de " +
-                    "turno (diurno ou noturno).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Escolher Colega",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFD700),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clickable { showUserSelectionInfo = !showUserSelectionInfo }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "i",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
+
+            if (showUserSelectionInfo) {
+                Text(
+                    text = "A lista mostra apenas colegas do mesmo grupo de " +
+                        "turno (diurno ou noturno).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Spacer(Modifier.height(16.dp))
+            }
             UserChips(
                 users = colleagues,
                 selectedId = state.selectedTargetUserId,
@@ -478,7 +539,6 @@ private fun FolgaChips(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         folgas.forEach { folga ->
-            val owner = users.firstOrNull { it.id == folga.userId }?.name ?: "—"
             // Se o dia tem troca pendente, marcamos visualmente com
             // " · Aguardando" em laranja no fim do label e bloqueamos
             // a seleção (`enabled = false`). O M3 FilterChip cinza-out
@@ -494,7 +554,7 @@ private fun FolgaChips(
                 label = {
                     if (pending) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${folga.date.formatBrazilian()} · $owner")
+                            Text(folga.date.formatDayAndMonth())
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "Aguardando",
@@ -503,7 +563,7 @@ private fun FolgaChips(
                             )
                         }
                     } else {
-                        Text("${folga.date.formatBrazilian()} · $owner")
+                        Text(folga.date.formatDayAndMonth())
                     }
                 },
                 colors = FilterChipDefaults.filterChipColors(),
@@ -519,7 +579,7 @@ private fun FolgaChips(
  * nome — não tem data nem status porque o colega não precisou cadastrar
  * nada pro pedido existir.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun UserChips(
     users: List<User>,
@@ -532,16 +592,43 @@ private fun UserChips(
     }
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         users.forEach { user ->
-            FilterChip(
-                selected = selectedId == user.id,
-                onClick = { onSelect(user.id) },
-                label = { Text(user.name) },
-                colors = FilterChipDefaults.filterChipColors(),
-            )
+            val isSelected = selectedId == user.id
+            Column(
+                modifier = Modifier
+                    .clickable { onSelect(user.id) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(84.dp)
+                        .border(
+                            width = if (isSelected) 3.dp else 0.dp,
+                            color = if (isSelected) Color(0xFF0088FF) else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .padding(if (isSelected) 4.dp else 0.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ProfileAvatar(
+                        name = user.name,
+                        photoUrl = user.photoUrl,
+                        size = 72.dp
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = user.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
