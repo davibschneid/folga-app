@@ -129,6 +129,7 @@ fun FolgasScreen(
                                     date = swap.date,
                                     status = swap.status,
                                     viewerRole = if (swap.iAmRequester) SwapViewerRole.REQUESTER else SwapViewerRole.TARGET,
+                                    note = swap.note,
                                 )
                             }
                         }

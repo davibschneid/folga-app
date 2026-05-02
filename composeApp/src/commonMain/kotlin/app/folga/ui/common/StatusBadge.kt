@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.folga.domain.SwapStatus
@@ -32,8 +33,8 @@ fun StatusBadge(
     }
     // Badge mais compacto: padding vertical 6 → 2 e horizontal 12 → 8
     // (reduz altura sem cortar o texto), corner 16 → 12 acompanhando
-    // a nova altura, fontSize 11 → 10. Pedido do cliente pra ocupar
-    // menos espaço no rodapé do card.
+    // a nova altura, fontSize 11 → 8. Pedido do cliente pra ocupar
+    // menos espaço e evitar quebra de linha no cabeçalho.
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
@@ -41,10 +42,13 @@ fun StatusBadge(
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
             color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
